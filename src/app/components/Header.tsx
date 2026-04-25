@@ -10,6 +10,7 @@ type NewsItem = {
   region: string;
   category: string;
   date: string;
+  url: string;
 };
 
 export function Header() {
@@ -66,15 +67,21 @@ export function Header() {
                     <div className="p-4 text-sm text-gray-500">Aucune actualite disponible pour le moment.</div>
                   ) : (
                     newsItems.map((item) => (
-                      <div key={item.id} className="p-4 border-b border-gray-100 hover:bg-gray-50">
+                      <a
+                        key={item.id}
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="font-medium text-sm text-gray-900">{item.title}</p>
+                            <p className="font-medium text-sm text-gray-900 hover:text-emerald-600">{item.title}</p>
                             <p className="text-xs text-gray-500 mt-1">{item.source} · {item.region} · {item.category}</p>
                           </div>
-                          <ExternalLink className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                          <ExternalLink className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
                         </div>
-                      </div>
+                      </a>
                     ))
                   )}
                 </div>

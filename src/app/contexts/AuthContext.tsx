@@ -28,7 +28,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
+    // Validate input
+    if (!email || !password) {
+      throw new Error('Email and password are required');
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    // Validate password minimum length
+    if (password.length < 6) {
+      throw new Error('Password must be at least 6 characters');
+    }
+
     // Mock authentication - in real app, this would call your API
+    // For demo purposes, we'll accept credentials but validate them properly
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     const mockUser: User = {
