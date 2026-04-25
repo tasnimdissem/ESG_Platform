@@ -1,0 +1,17 @@
+node_modules
+dist
+.git
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+.ipynb_checkpoints
+RAG_SYSTEM/storage/*
+RAG_SYSTEM/data/processed/*
+storage/*
+data/processed/*
+mv_data
+logs/
+*.log

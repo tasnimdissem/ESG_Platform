@@ -1,0 +1,17 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY backend/requirements.txt ./backend/
+RUN pip install --no-cache-dir -r backend/requirements.txt
+
+# Copy backend source
+COPY backend/ ./backend/
+
+# Set Python path to find the backend package
+ENV PYTHONPATH=/app
+
+EXPOSE 5050
+
+CMD ["python", "backend/app.py"]

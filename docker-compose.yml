@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # RAG Service (Vector search and LLM orchestration)
+  rag:
+    build:
+      context: .
+      dockerfile: Dockerfile.rag
+    container_name: esg-rag-service
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - RAG_API_BASE_URL=http://rag:8000
+    volumes:
+      - rag_data:/app/RAG_SYSTEM/data
+      - rag_storage:/app/RAG_SYSTEM/storage
+    ports:
+      - "8000:8000"
+    networks:
+      - esg-network
+
+  # Orchestration Backend (Auth, News, Recommendations)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: esg-backend
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - RAG_API_BASE_URL=http://rag:8000
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///esg_pfe.db}
+    depends_on:
+      - rag
+    ports:
+      - "5050:5050"
+    networks:
+      - esg-network
+
+  # Frontend (Vite/React served by Nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: esg-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - esg-network
+
+volumes:
+  rag_data:
+  rag_storage:
+
+networks:
+  esg-network:
+    driver: bridge
