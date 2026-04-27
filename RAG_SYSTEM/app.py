@@ -131,6 +131,11 @@ def api_query() -> tuple:
         return _json_error(str(exc), 400)
 
 
+@app.post("/api/v1/integration")
+def api_integration() -> tuple:
+    return api_query()
+
+
 @app.post("/api/v1/search")
 def api_search() -> tuple:
     payload = request.get_json(silent=True) or {}
@@ -180,6 +185,10 @@ def api_docs() -> tuple:
                     },
                     "POST /api/v1/query": {
                         "description": "Integration-friendly endpoint for external platforms",
+                        "request_example": {"message": "What are the main ESG risks?", "top_k": 5},
+                    },
+                    "POST /api/v1/integration": {
+                        "description": "Backward-compatible alias of /api/v1/query",
                         "request_example": {"message": "What are the main ESG risks?", "top_k": 5},
                     },
                 },

@@ -27,7 +27,7 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     RAG_API_BASE_URL = os.getenv('RAG_API_BASE_URL', 'http://localhost:8000')
-    RAG_INTEGRATION_PATH = os.getenv('RAG_INTEGRATION_PATH', '/api/v1/integration')
+    RAG_INTEGRATION_PATH = os.getenv('RAG_INTEGRATION_PATH', '/api/v1/query')
     RAG_API_URL = os.getenv('RAG_API_URL', '')
     RAG_API_TOKEN = os.getenv('RAG_API_TOKEN', '')
     RAG_TOP_K = int(os.getenv('RAG_TOP_K', '3'))

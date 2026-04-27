@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, urlunparse
 
 import requests
 from flask import current_app
@@ -64,6 +64,20 @@ def _integration_endpoint_url() -> str:
     if not path.startswith('/'):
         path = '/' + path
     return urljoin(base_url, path.lstrip('/'))
+
+
+def _with_query_endpoint(url: str) -> str:
+    parsed = urlparse(url)
+    path = parsed.path or ''
+
+    if path.endswith('/api/v1/integration'):
+        new_path = path[: -len('/api/v1/integration')] + '/api/v1/query'
+    elif path.endswith('/integration'):
+        new_path = path[: -len('/integration')] + '/query'
+    else:
+        new_path = '/api/v1/query'
+
+    return urlunparse(parsed._replace(path=new_path))
 
 
 def _build_remote_headers() -> dict[str, str]:
@@ -198,6 +212,17 @@ def _call_remote_integration(normalized_request: dict[str, Any]) -> dict[str, An
     }
 
     response = requests.post(endpoint, json=payload, headers=headers, timeout=timeout_seconds)
+    if response.status_code in {404, 405}:
+        fallback_endpoint = _with_query_endpoint(endpoint)
+        if fallback_endpoint != endpoint:
+            current_app.logger.warning(
+                'Remote endpoint %s returned %s, retrying with %s',
+                endpoint,
+                response.status_code,
+                fallback_endpoint,
+            )
+            response = requests.post(fallback_endpoint, json=payload, headers=headers, timeout=timeout_seconds)
+
     if response.status_code == 401:
         raise PermissionError('Unauthorized (invalid/missing bearer token when auth is enabled)')
     response.raise_for_status()
@@ -207,7 +232,13 @@ def _call_remote_integration(normalized_request: dict[str, Any]) -> dict[str, An
         raise RuntimeError('RAG integration returned invalid JSON payload')
 
     request_block = data.get('request', {}) if isinstance(data.get('request'), dict) else {}
+    if not request_block and isinstance(data.get('input'), dict):
+        request_block = data.get('input', {})
+
     response_block = data.get('response', {}) if isinstance(data.get('response'), dict) else {}
+    if not response_block and isinstance(data.get('output'), dict):
+        response_block = data.get('output', {})
+
     meta_block = data.get('meta', {}) if isinstance(data.get('meta'), dict) else {}
 
     request_id = request_block.get('request_id') or request_block.get('client_request_id') or normalized_request.get('client_request_id') or ''

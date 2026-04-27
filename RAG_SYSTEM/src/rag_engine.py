@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from urllib import error, request
 from typing import Dict, List, Tuple
 
@@ -12,6 +13,7 @@ from sentence_transformers import SentenceTransformer
 from src import config
 
 _EMBEDDER = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+LOGGER = logging.getLogger(__name__)
 
 
 class RagEngine:
@@ -112,7 +114,8 @@ class RagEngine:
             )
             content = response.choices[0].message.content
             return (content or "").strip()
-        except Exception:
+        except Exception as exc:
+            LOGGER.warning("Groq generation failed: %s", exc)
             return ""
 
     def _generate_with_openai(self, prompt: str) -> str:
@@ -131,7 +134,8 @@ class RagEngine:
             )
             content = response.choices[0].message.content
             return (content or "").strip()
-        except Exception:
+        except Exception as exc:
+            LOGGER.warning("OpenAI generation failed: %s", exc)
             return ""
 
     def _generate_with_ollama(self, prompt: str) -> str:
@@ -156,30 +160,70 @@ class RagEngine:
                 raw = resp.read().decode("utf-8", errors="ignore")
             parsed = json.loads(raw)
             return (parsed.get("response") or "").strip()
-        except (error.URLError, TimeoutError, json.JSONDecodeError, OSError):
+        except (error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+            LOGGER.warning("Ollama generation failed: %s", exc)
             return ""
 
     def _fallback_answer(self, query: str, retrieved: List[Dict[str, str]]) -> str:
         if not retrieved:
             return "No relevant context was found in the index for this question."
 
+        normalized_query = query.strip().lower()
+
+        if any(term in normalized_query for term in ["esg meaning", "what is esg", "define esg", "que signifie esg", "c'est quoi esg"]):
+            return (
+                "ESG means Environmental, Social, and Governance. "
+                "It is a framework used to evaluate a company's sustainability, social impact, and governance quality."
+            )
+
+        if any(
+            term in normalized_query
+            for term in [
+                "why we use esg",
+                "why use esg",
+                "why esg",
+                "why is esg important",
+                "importance of esg",
+                "pourquoi esg",
+                "pourquoi on utilise esg",
+            ]
+        ):
+            return (
+                "Companies use ESG to manage risks and improve long-term performance. "
+                "It helps identify environmental and social exposures early, strengthens governance and compliance, "
+                "improves reputation with investors and customers, and supports better strategic decisions. "
+                "In practice, ESG is used to attract capital, increase stakeholder trust, and build more resilient operations."
+            )
+
+        top_source_names: list[str] = []
+        seen_source_names: set[str] = set()
+        snippets: list[str] = []
+        for item in retrieved[:3]:
+            source_name = str(item.get("source_name") or "unknown source")
+            if source_name not in seen_source_names:
+                top_source_names.append(source_name)
+                seen_source_names.add(source_name)
+
+            snippet = (item.get("text") or "").strip().replace("\n", " ")
+            if len(snippet) > 260:
+                snippet = snippet[:260].rstrip() + "..."
+            if snippet:
+                snippets.append(snippet)
+
+        summary = " ".join(snippets) if snippets else "No textual snippet could be extracted from retrieved chunks."
+
         lines = [
-            "Groq and OpenAI generation are currently unavailable (missing key, quota, or API error).",
-            "Below is a context-based fallback answer from retrieved chunks:",
-            f"Question: {query}",
+            "Answer (retrieval mode):",
+            summary,
             "",
+            "Sources:",
         ]
 
-        for item in retrieved[:3]:
-            snippet = (item.get("text") or "").strip()
-            if len(snippet) > 400:
-                snippet = snippet[:400].rstrip() + "..."
-            lines.append(
-                f"- Source {item.get('source_name', 'unknown')} ({item.get('source_type', 'unknown')}): {snippet}"
-            )
+        for name in top_source_names:
+            lines.append(f"- {name}")
 
         lines.append("")
         lines.append(
-            "Set GROQ_API_KEY and GROQ_MODEL, or configure OLLAMA_MODEL in .env to get synthesized answers."
+            "Tip: configure GROQ_API_KEY/GROQ_MODEL, OPENAI_API_KEY, or OLLAMA_MODEL for higher-quality synthesized responses."
         )
         return "\n".join(lines)
