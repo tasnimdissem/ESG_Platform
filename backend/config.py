@@ -35,6 +35,15 @@ class Config:
     RAG_ALLOW_LOCAL_FALLBACK = os.getenv('RAG_ALLOW_LOCAL_FALLBACK', 'true').lower() in {'1', 'true', 'yes'}
     INTEGRATION_AUTH_ENABLED = os.getenv('INTEGRATION_AUTH_ENABLED', 'false').lower() in {'1', 'true', 'yes'}
     INTEGRATION_BEARER_TOKEN = os.getenv('INTEGRATION_BEARER_TOKEN', '')
+    SMTP_HOST = os.getenv('SMTP_HOST', '')
+    SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
+    SMTP_USERNAME = os.getenv('SMTP_USERNAME', '')
+    SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
+    SMTP_USE_TLS = os.getenv('SMTP_USE_TLS', 'true').lower() in {'1', 'true', 'yes'}
+    SMTP_USE_SSL = os.getenv('SMTP_USE_SSL', 'false').lower() in {'1', 'true', 'yes'}
+    EMAIL_FROM = os.getenv('EMAIL_FROM', 'no-reply@esg-platform.local')
+    EMAIL_FROM_NAME = os.getenv('EMAIL_FROM_NAME', 'ESG Platform')
+    EMAIL_RESET_LINK_BASE_URL = os.getenv('EMAIL_RESET_LINK_BASE_URL', 'http://localhost:5173/reset-password')
     POWER_BI_IFRAME_URL = os.getenv(
         'POWER_BI_IFRAME_URL',
         'https://app.powerbi.com/reportEmbed?reportId=YOUR_REPORT_ID&groupId=YOUR_GROUP_ID&autoAuth=true&ctid=YOUR_TENANT_ID',

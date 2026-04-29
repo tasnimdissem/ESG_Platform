@@ -9,6 +9,9 @@ def _fallback_chat_response(message: str) -> str:
     if not normalized:
         return 'Please type a question about ESG, reporting, or the dashboard.'
 
+    if 'esg' in normalized and any(keyword in normalized for keyword in ['meaning', 'definition', 'what is', 'quoi', 'signifie']):
+        return 'ESG means Environmental, Social, and Governance. It is a framework used to assess sustainability and responsible business practices.'
+
     if any(keyword in normalized for keyword in ['hello', 'hi', 'hey']):
         return 'Hello. I can help with ESG KPIs, reports, and dashboard navigation.'
 
@@ -24,7 +27,7 @@ def _fallback_chat_response(message: str) -> str:
     if 'dashboard' in normalized:
         return 'Open the dashboard to see ESG KPIs, risk level, and Power BI integration.'
 
-    return 'I am a basic ESG assistant for now. Please ask about dashboards, reports, or authentication.'
+    return 'I am a local ESG assistant. Ask me about ESG meaning, dashboards, reports, recommendations, or authentication.'
 
 
 def _source_to_text(source: Any, index: int) -> str:

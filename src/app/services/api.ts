@@ -93,6 +93,17 @@ type IntegrationResponse = {
   };
 };
 
+type RagQueryResponse = {
+  input?: {
+    question?: string;
+    top_k?: number;
+  };
+  output?: {
+    answer?: string;
+    sources?: IntegrationSource[];
+  };
+};
+
 type RecommendationsQuery = {
   score?: number;
   risk_level?: string;
@@ -137,6 +148,16 @@ async function fetchIntegration(payload: IntegrationRequest): Promise<Integratio
   return fetchJson<IntegrationResponse>('/api/v1/integration', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+async function fetchDirectRagQuery(message: string): Promise<RagQueryResponse> {
+  return fetchJson<RagQueryResponse>('http://127.0.0.1:8000/api/v1/query', {
+    method: 'POST',
+    body: JSON.stringify({
+      message,
+      top_k: 5,
+    }),
   });
 }
 
@@ -208,16 +229,12 @@ function normalizeRecommendationItems(items: IntegrationRecommendation[] | undef
 }
 
 export async function fetchChatResponse(message: string): Promise<ChatResponse> {
-  const data = await fetchIntegration({
-    message,
-    top_k: 5,
-    include_recommendations: false,
-  });
+  const data = await fetchDirectRagQuery(message);
 
   return {
-    answer: data.response?.answer ?? '',
-    sources: normalizeSourceLabels(data.response?.sources),
-    confidence: Number(data.response?.confidence ?? 0),
+    answer: data.output?.answer ?? '',
+    sources: normalizeSourceLabels(data.output?.sources),
+    confidence: data.output?.sources?.length ? 0.9 : 0,
   };
 }
 

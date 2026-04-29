@@ -7,7 +7,7 @@ from urllib.parse import urljoin, urlparse, urlunparse
 import requests
 from flask import current_app
 
-from services.local_rag_service import generate_local_chat_answer, generate_local_recommendations
+from backend.services.local_rag_service import generate_local_chat_answer, generate_local_recommendations
 
 
 def _safe_int(value: Any, default: int) -> int:

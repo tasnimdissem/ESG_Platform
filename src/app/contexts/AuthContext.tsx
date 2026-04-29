@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
   role: string;
+  created_at?: string | null;
 }
 
 interface AuthContextType {
@@ -12,60 +13,97 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
+  isAuthLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const TOKEN_STORAGE_KEY = 'esg_token';
+
+type AuthResponse = {
+  access_token: string;
+  user: User;
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is stored in localStorage
-    const storedUser = localStorage.getItem('esg_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    const restoreSession = async () => {
+      const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+      if (!token) {
+        setIsAuthLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/auth/me', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          localStorage.removeItem(TOKEN_STORAGE_KEY);
+          setUser(null);
+          return;
+        }
+
+        const data = (await response.json()) as { user: User };
+        setUser(data.user);
+      } catch {
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
+        setUser(null);
+      } finally {
+        setIsAuthLoading(false);
+      }
+    };
+
+    void restoreSession();
   }, []);
 
   const login = async (email: string, password: string) => {
-    // Validate input
     if (!email || !password) {
       throw new Error('Email and password are required');
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      throw new Error('Invalid email format');
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      let message = 'Login failed';
+
+      try {
+        const parsed = JSON.parse(errorBody) as { error?: string; message?: string };
+        message = parsed.error ?? parsed.message ?? message;
+      } catch {
+        if (errorBody) {
+          message = errorBody;
+        }
+      }
+
+      throw new Error(message);
     }
 
-    // Validate password minimum length
-    if (password.length < 6) {
-      throw new Error('Password must be at least 6 characters');
-    }
-
-    // Mock authentication - in real app, this would call your API
-    // For demo purposes, we'll accept credentials but validate them properly
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockUser: User = {
-      id: '1',
-      name: 'Analyste ESG',
-      email: email,
-      role: 'Data Scientist'
-    };
-    
-    setUser(mockUser);
-    localStorage.setItem('esg_user', JSON.stringify(mockUser));
+    const data = (await response.json()) as AuthResponse;
+    localStorage.setItem(TOKEN_STORAGE_KEY, data.access_token);
+    setUser(data.user);
   };
 
   const logout = () => {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
     setUser(null);
-    localStorage.removeItem('esg_user');
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isAuthLoading }}>
       {children}
     </AuthContext.Provider>
   );

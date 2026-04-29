@@ -6,7 +6,7 @@ from typing import Any
 import requests
 from flask import current_app
 
-from services.local_rag_service import generate_local_recommendations
+from backend.services.local_rag_service import generate_local_recommendations
 
 
 REQUIRED_FIELDS = [
