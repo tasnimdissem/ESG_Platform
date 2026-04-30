@@ -151,16 +151,6 @@ async function fetchIntegration(payload: IntegrationRequest): Promise<Integratio
   });
 }
 
-async function fetchDirectRagQuery(message: string): Promise<RagQueryResponse> {
-  return fetchJson<RagQueryResponse>('http://127.0.0.1:8000/api/v1/query', {
-    method: 'POST',
-    body: JSON.stringify({
-      message,
-      top_k: 5,
-    }),
-  });
-}
-
 function normalizeSourceLabels(sources: IntegrationSource[] | undefined): string[] {
   if (!Array.isArray(sources)) return [];
   return sources
@@ -229,12 +219,17 @@ function normalizeRecommendationItems(items: IntegrationRecommendation[] | undef
 }
 
 export async function fetchChatResponse(message: string): Promise<ChatResponse> {
-  const data = await fetchDirectRagQuery(message);
+  const data = await fetchIntegration({
+    client_request_id: `chat-${Date.now()}`,
+    message,
+    top_k: 5,
+    include_recommendations: false,
+  });
 
   return {
-    answer: data.output?.answer ?? '',
-    sources: normalizeSourceLabels(data.output?.sources),
-    confidence: data.output?.sources?.length ? 0.9 : 0,
+    answer: data.response?.answer ?? '',
+    sources: normalizeSourceLabels(data.response?.sources),
+    confidence: data.response?.sources?.length ? 0.9 : 0,
   };
 }
 
