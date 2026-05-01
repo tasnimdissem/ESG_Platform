@@ -50,22 +50,6 @@ def integration() -> object:
         return jsonify({'error': 'Unexpected internal error'}), 500
 
 
-@api_bp.route('/predict', methods=['POST'])
-def predict() -> object:
-    payload = request.get_json(silent=True)
-    is_valid, features, error = validate_predict_payload(payload)
-
-    if not is_valid:
-        return jsonify({'error': error}), 400
-
-    prediction = compute_esg_score(features)
-    return jsonify(
-        {
-            'status': 'success',
-            'prediction': prediction,
-            'message': 'Dummy ESG prediction returned successfully.',
-        }
-    )
 
 
 @api_bp.route('/recommend', methods=['POST'])
