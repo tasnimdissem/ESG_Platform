@@ -1,0 +1,44 @@
+# Base Postfix configuration for Gmail SMTP relay.
+# Runtime values are finalized by entrypoint.sh through postconf.
+
+compatibility_level = 3.6
+myhostname = postfix.local
+myorigin = $myhostname
+mydestination = localhost
+inet_interfaces = all
+inet_protocols = ipv4
+disable_dns_lookups = no
+
+relayhost = [smtp.gmail.com]:587
+
+smtpd_relay_restrictions = permit_mynetworks,reject_unauth_destination
+smtpd_recipient_restrictions = permit_mynetworks,reject_unauth_destination
+
+smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+smtp_sasl_security_options = noanonymous
+smtp_sasl_tls_security_options = noanonymous
+smtp_tls_security_level = encrypt
+smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
+smtp_tls_mandatory_protocols = TLSv1.2 TLSv1.3
+smtp_tls_note_starttls_offer = yes
+
+message_size_limit = 26214400
+mail_owner = postfix
+
+queue_directory = /var/spool/postfix
+data_directory = /var/lib/postfix
+mail_spool_directory = /var/mail
+
+debug_peer_level = 2
+command_directory = /usr/sbin
+daemon_directory = /usr/libexec/postfix
+mailq_path = /usr/bin/mailq
+newaliases_path = /usr/bin/newaliases
+sendmail_path = /usr/sbin/sendmail
+setgid_group = postdrop
+
+alias_maps = hash:/etc/aliases
+alias_database = hash:/etc/aliases
+
+recipient_delimiter = +

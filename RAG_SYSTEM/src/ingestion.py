@@ -71,14 +71,30 @@ def _chunk_text(text: str, chunk_size: int = 900, overlap: int = 150) -> List[st
 
     chunks: List[str] = []
     start = 0
-    while start < len(cleaned):
-        end = min(start + chunk_size, len(cleaned))
-        chunk = cleaned[start:end]
+    text_len = len(cleaned)
+
+    while start < text_len:
+        end = min(start + chunk_size, text_len)
+        
+        # Word-boundary adjustment: look backward for a space to avoid cutting a word in half.
+        if end < text_len:
+            last_space = cleaned.rfind(" ", start, end)
+            if last_space != -1 and last_space > start + (chunk_size // 2):
+                end = last_space
+
+        chunk = cleaned[start:end].strip()
         if chunk:
             chunks.append(chunk)
-        if end >= len(cleaned):
+            
+        if end >= text_len:
             break
-        start = max(0, end - overlap)
+            
+        # Adjust next start so it doesn't start in the middle of a word
+        start = end - overlap
+        if start > 0 and cleaned[start - 1] != " ":
+            next_space = cleaned.find(" ", start)
+            if next_space != -1 and next_space < start + overlap:
+                start = next_space + 1
 
     return chunks
 

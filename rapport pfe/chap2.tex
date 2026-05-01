@@ -1,0 +1,375 @@
+\chapter{Exploration et analyse des données}
+
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+Ce chapitre détaille la phase d'exploration et analyse des données, pivot du cycle CRISP-DM. L’objectif est double : d’une part, auditer la qualité du dataset longitudinal issu de l’Institut Louis Bachelier ; d’autre part, caractériser les propriétés statistiques des indicateurs. Cette étape est cruciale pour identifier les verrous méthodologiques — notamment l'asymétrie distributionnelle et les anomalies de saisie — qui dictent la conception du pipeline de prétraitement.
+
+\section{Acquisition des données}
+La première étape est l’une des plus essentielles dans la réalisation de ce projet, elle consiste à identifier une base de données fiable et suffisamment riche afin de permettre l’analyse des performances ESG des entreprises.
+
+\subsection{Recherche de données ESG}
+L'identification d'un jeu de données ESG a reposé sur l'exploration de dépôts publics (Kaggle, Hugging Face Datasets), d'archives académiques et une prospection auprès de l'Institut Louis Bachelier.
+\subsection{Limites des datasets publics}
+ Nos recherches ont montré qu'aucun jeu de données public n'est suffisant pour cette étude. Les données ESG complètes sont privées et payantes. Elles appartiennent à des agences spécialisées, ce qui limite leur accès gratuit. 
+\subsection{Source finale des données}
+Nous avons finalement obtenu l’accès à une base de données fournie par l’Institut Louis Bachelier. Le dataset utilisé dans ce projet regroupe un ensemble d’entreprises décrites à travers plusieurs variables économiques ainsi que différents indicateurs environnementaux, sociaux et de gouvernance . Ces données constituent la base des analyses réalisées dans la suite de ce travail.
+\section{Description du dataset}
+\subsection{Structure des données}
+Le jeu de données final se présente sous la forme d’un panel organisé selon un index hiérarchique associant un identifiant unique d’entreprise (company\_id) et une année d’observation (year). Cette structure bidimensionnelle permet de combiner une dimension transversale (comparaison entre entreprises) et une dimension temporelle (évolution des indicateurs dans le temps). L’unicité de chaque couple (company\_id, year) a été vérifiée et garantit l’absence de doublons, condition essentielle pour la validité des analyses longitudinales.
+\subsection{Période et taille du dataset}
+L’étude couvre les exercices 2018 à 2020. Ce qui présente l’avantage d’offrir un panel parfaitement équilibré : chaque entreprise apparaît pour l’intégralité des trois années. Cette caractéristique facilite les comparaisons intertemporelles et simplifie le traitement des données manquantes.
+
+L’échantillon final comprend 13.518 entreprises uniques, et un volume total de 40.554 observations (firm‑year).
+\subsection{Types de variables}
+Le dataset intègre 23 colonnes, réparties en trois grandes familles : Variables d’identification Indicateurs financiers et  Indicateurs ESG couvrant les trois piliers de la durabilité : Environnement, Social et Gouvernance.
+\subsection{Qualité des données}
+Les contrôles préliminaires ont confirmé l’absence de valeurs manquantes sur l’ensemble des variables numériques, ce qui témoigne de la qualité du travail de consolidation réalisé par l’Institut Louis Bachelier. Seules quelques variables textuelles (description d’activité, code ISIN) présentent un faible taux de lacunes, sans incidence sur les analyses quantitatives.
+\section{Taxonomie et Dictionnaire des Variables}
+On présente la sélection des variables qui a été pensée pour couvrir les trois piliers de la durabilité – Environnemental (E), Social (S) et de Gouvernance (G) – ainsi que des indicateurs financiers servant de variables de contrôle. Le Tableau 2.1 présente les 23 colonnes du dataset, en précisant pour chacune sa catégorie, sa définition, son unité de mesure et son intérêt dans l’analyse.
+
+
+\renewcommand{\arraystretch}{1.5}
+\small
+
+\setlength{\LTleft}{0pt}
+\setlength{\LTright}{0pt}
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.22\textwidth}
+                  >{\raggedright\arraybackslash}p{0.38\textwidth}
+                  >{\raggedright\arraybackslash}p{0.35\textwidth}}
+
+\caption{Dictionnaire des variables du panel ESG}
+\label{tab:esg_variables} \\
+
+\toprule
+\textbf{Nom de la variable} & \textbf{Description \& Unité} & \textbf{Utilité dans l'analyse} \\
+\midrule
+\endfirsthead
+
+\toprule
+\textbf{Nom de la variable} & \textbf{Description \& Unité} & \textbf{Utilité dans l'analyse} \\
+\midrule
+\endhead
+
+\endfoot
+
+\bottomrule
+\multicolumn{3}{l}{\footnotesize\textit{Note :} Période couverte : 2018--2020. Les unités monétaires sont en millions sauf mention contraire.} \\
+\endlastfoot
+
+%--------------------------------------------
+
+\multicolumn{3}{l}{\textbf{Identification}} \\
+\midrule
+
+\texttt{company\_id} & Identifiant unique attribué à chaque entreprise (chaîne de caractères) & Garantit la traçabilité et permet la construction de l'index hiérarchique \\
+\midrule
+\texttt{year} & Année de l'observation (2018, 2019, 2020) & Introduit la dimension temporelle du panel \\
+\midrule
+\texttt{company\_name} & Dénomination sociale complète de l'entreprise & Identification nominale, utilisée pour la vérification manuelle \\
+\midrule
+\texttt{ticker} & Code boursier (ex.\ \texttt{OM:XANO B}) & Facilite le lien avec des bases de données financières externes \\
+\midrule
+\texttt{LEI} & \textit{Legal Entity Identifier} — code alphanumérique normalisé (ISO~17442) & Identifiant unique et pérenne des personnes morales \\
+\midrule
+\texttt{isin} & \textit{International Securities Identification Number} — code d'identification des titres financiers & Permet un appariement précis avec les bases de données de marché \\
+\midrule
+\texttt{Business Desc.} & Description textuelle de l'activité principale de l'entreprise & Fournit un contexte sectoriel qualitatif \\
+\midrule
+\texttt{region} & Région géographique du siège social (ex.\ Europe, Asia/Pacific) & Variable catégorielle utilisée pour des analyses de segmentation géographique \\
+\midrule
+\texttt{hq\_country} & Pays du siège social & Permet des regroupements par pays \\
+\midrule
+\texttt{primary\_industry} & Secteur d'activité principal selon la classification GICS (ex.\ \textit{Industrial Machinery}) & Essentielle pour contrôler les effets sectoriels et pour l'interprétation des clusters \\
+
+%--------------------------------------------
+\midrule
+
+\multicolumn{3}{l}{\textbf{Variables financières}} \\
+\midrule
+
+\texttt{market\_cap} & Capitalisation boursière en fin d'exercice (en millions d'unités monétaires). Min~=~36,8 ; max~=~2,25~M & Indicateur de la taille de l'entreprise ; permet de normaliser les ratios d'intensité ESG \\
+\midrule
+\texttt{employees} & Nombre total de salariés (en unités). Min~=~1 ; max~=~2,3~M & Mesure la dimension de la main-d'\oe uvre, utilisée comme variable de contrôle et pour calculer des indicateurs par employé \\
+\midrule
+\texttt{revenue} & Chiffre d'affaires annuel (en millions d'unités monétaires). Min~=~$-$13\,944 ; max~=~46\,984 & Reflète la performance économique ; les valeurs négatives sont traitées dans la phase de prétraitement \\
+
+%--------------------------------------------
+\midrule
+
+\multicolumn{3}{l}{\textbf{Pilier Environnemental (E)}} \\
+\midrule
+
+\texttt{scope\_1} & Émissions directes de GES (tCO$_2$eq). Min~=~0 ; max~=~554~M & Mesure l'empreinte carbone directement générée par les sources détenues ou contrôlées par l'entreprise \\
+\midrule
+\texttt{scope\_2} & Émissions indirectes liées à la consommation d'énergie (tCO$_2$eq). Min~=~0 ; max~=~406~M & Reflète l'impact de la production d'énergie achetée et consommée \\
+\midrule
+\texttt{scope\_3} & Autres émissions indirectes — chaîne de valeur amont et aval (tCO$_2$eq). Min~=~0 ; max~=~16,8~Md & Indicateur clé de la responsabilité élargie, souvent très concentré sur quelques grandes entreprises \\
+\midrule
+\texttt{energy\_} \newline \texttt{consumption} & Consommation totale d'énergie (MWh). Min~=~0 ; max~=~81,7~Md & Proxy de l'intensité énergétique et de la dépendance aux énergies fossiles \\
+\midrule
+\texttt{waste\_production} & Volume de déchets produits (en tonnes). Min~=~0 ; max~=~28~Md & Mesure l'impact sur l'environnement local et la gestion des ressources \\
+\midrule
+\texttt{waste\_recycling} & Volume de déchets recyclés (en tonnes). Min~=~0 ; max~=~84~M & Indique l'engagement dans l'économie circulaire \\
+\midrule
+\texttt{water\_consumption} & Volume d'eau consommé (m$^3$). Min~=~0 ; max~=~69~Md & Pression sur la ressource en eau, enjeu stratégique pour les industries à forte intensité hydrique \\
+\midrule
+\texttt{water\_withdrawal} & Volume d'eau prélevé (m$^3$). Min~=~0 ; max~=~91,6~Md & Distingue le prélèvement de la consommation et renseigne sur les pressions locales \\
+
+%--------------------------------------------
+\midrule
+\multicolumn{3}{l}{\textbf{Pilier Social (S)}} \\
+\midrule
+
+\texttt{hours\_of\_training} & Nombre total d'heures de formation dispensées aux salariés. Min~=~0 ; max~=~148~M & Proxy de l'investissement dans le capital humain et de la politique de développement des compétences \\
+
+%--------------------------------------------
+\midrule
+
+\multicolumn{3}{l}{\textbf{Pilier Gouvernance (G)}} \\
+\midrule
+
+\texttt{independent\_board\_} \newline \texttt{members\_percentage}
+& Proportion d'administrateurs indépendants au sein du conseil (en \%). Min~=~0 ; max~=~100
+& Indicateur de la qualité de la gouvernance et de l'équilibre des pouvoirs \\
+\midrule
+\texttt{legal\_costs\_paid\_} \newline \texttt{for\_controversies}
+& Coûts juridiques supportés à la suite de controverses (en unités monétaires). Min~=~0 ; max~=~14\,830
+& Révèle l'exposition aux risques extra-financiers et la capacité à gérer les litiges \\
+\midrule
+\texttt{ceo\_compensation} & Rémunération totale du directeur général (en unités monétaires). Min~=~9\,768 ; max~=~5,93~Md & Permet d'apprécier les pratiques de rémunération et l'alignement avec la performance long terme \\
+
+\end{longtable}
+
+L'hétérogénéité des unités et des échelles de grandeur impose une standardisation rigoureuse. Sans transformation préalable, les variables aux ordres de grandeur les plus élevés biaiseraient les calculs de distance des algorithmes de clustering.
+
+\section{Analyse exploratoire des données (EDA)}
+
+L’analyse exploratoire vise à valider la fiabilité des 40 554 observations avant modélisation. Cette étape a permis d'identifier des verrous critiques orientant la stratégie de préparation des données.
+
+\subsection{Asymétrie distributionnelle}
+
+Le dataset brut présente une asymétrie positive extrême sur la quasi-totalité des indicateurs. À titre d'exemple, la moyenne des émissions Scope 3 (3,6 Mt) est 95 fois supérieure à la médiane (37 581 t). Cette concentration chez quelques grands groupes rend les valeurs brutes inexploitables pour le clustering. hormis pour la variable \texttt{independent\_board\_members\_percentage}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{images/hist_esg.png}
+\caption{Distributions des variables (échelle semi-logarithmique) : mise en évidence de la forte asymétrie positive initiale}
+\label{fig:distribution}
+\end{figure}
+\subsection{Anomalies et valeurs suspectes}
+Deux anomalies majeures ont été isolées :
+
+\textbf{Anomalie de la rémunération des dirigeants :} 
+Sept observations affichent une valeur identique et aberrante de (2\,034\,700\,000) dans la variable \texttt{ceo\_compensation}. L'écart au 99e percentile confirme une erreur de saisie systématique. Non traitée, cette anomalie fausserait le calcul des centroïdes de clusters.
+
+\textbf{Revenus négatifs :} 50 observations, principalement dans le secteur financier (Banques, REITs), présentent un chiffre d'affaires négatif (Figure 2.2) et sont répartis sur toute la période étudiée (Figure 2.3). Si ces valeurs correspondent à des réalités comptables (pertes nettes), elles interdisent le calcul direct de ratios d'intensité (Émissions / CA) et nécessitent un traitement spécifique en phase de prétraitement.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{images/RevenusNégatifs.png}
+\caption{Répartition sectorielle des entreprises à revenu négatif}
+\end{figure}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{images/Répartition temporelle des revenus négatifs.png}
+\caption{Répartition temporelle des observations à revenu négatif}
+\label{fig:distribution}
+\end{figure}
+\section{Analyse des corrélations entre variables}
+
+Compte tenu de l'asymétrie extrême et de la présence d'outliers identifiés précédemment, nous privilégions le coefficient de corrélation de Spearman au détriment de celui de Pearson. Ce choix méthodologique permet de mesurer de manière plus robuste les relations entre variables, sans supposer la normalité des distributions ni la linéarité des liaisons.\cite{hauke2011comparison} La figure~2.4 présente cette matrice sous forme de \textit{heatmap}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{images/Matrice_de_correlation_spearman_brute.png}
+\caption{Matrice de corrélation de Spearman des variables numériques brutes}
+\label{fig:distribution}
+\end{figure}
+
+\subsection{Colinéarité opérationnelle et redondances: }L'analyse met en évidence une corrélation très forte entre le chiffre d'affaires (revenue) et les effectifs (employees), avec un coefficient de 0,814. Cette redondance opérationnelle confirme que ces deux variables capturent une dimension identique : la taille de l'entreprise.
+
+\subsection{Corrélation forte entre Eau, Énergie et Déchets:} 
+Une découverte majeure réside dans l'identification d'un trio de variables structurellement liées : la production de déchets, la consommation d'eau et la consommation d'énergie. Les corrélations entre ces trois flux sont extrêmes (>0,86), atteignant 0,876 entre l'eau et les déchets. Ces résultats démontrent que, dans le dataset, ces impacts environnementaux ne sont pas indépendants mais forment un bloc de consommation cohérent dicté par les processus industriels.
+
+\subsection{Le paradoxe taille‑impact:} Contrairement à une intuition liant mécaniquement volume d'activité et pollution, les corrélations entre les indicateurs de taille (Market\_cap, Revenue) et les métriques d’impact (Scopes, Waste) sont étonnamment faibles. Ce découplage statistique prouve que la performance environnementale est une donnée qualitative indépendante de la puissance financière, justifiant pleinement le recours au clustering pour identifier des profils ESG distincts.\cite{belkhiria2025predicting}
+
+\subsection{Indépendance de la gouvernance}
+Enfin, les indicateurs du pilier Gouvernance (\texttt{independent\_board\_members\_percentage}, \texttt{ceo\_compensation}) présentent des corrélations quasi nulles avec l'ensemble des dimensions environnementales et financières. Cette indépendance confirme que la gouvernance constitue une dimension distincte dans l'évaluation du risque ESG, apportant une information complémentaire qui ne peut être déduite des autres indicateurs.
+
+L’ensemble de ces résultats — asymétrie extrême, anomalies de saisie, revenus négatifs et découplage taille-impact — démontre l'inaptitude des données ESG brutes à une modélisation directe. Ces constats imposent la conception d’un pipeline de prétraitement rigoureux, visant à transformer ce gisement hétérogène en une base normalisée et statistiquement robuste.
+
+\section{Prétraitement et raffinement des données ESG}
+Le pipeline de préparation a été structuré en quatre étapes itératives:
+
+\subsection{Nettoyage et validation}
+La première phase consiste à assurer l'intégrité des types de données. Les variables catégorielles ont été converties au format \texttt{category} pour optimiser la mémoire. Concernant les anomalies financières, un indicateur binaire \texttt{revenue\_negative\_flag} a été créé pour isoler les 50 observations présentant un chiffre d'affaires négatif. Ce qui permet aux modèles ultérieurs de prendre en compte cette spécificité sans introduire de biais dans les calculs de ratios.
+
+
+\subsection{Atténuation des valeurs extrêmes}
+Afin de traiter l'anomalie identifiée sur la rémunération des dirigeants (sept valeurs identiques à 2,03 milliards d'euros), nous avons appliqué une technique de winsorisation. Plutôt que de supprimer ces observations au risque d'altérer la structure du panel, les valeurs supérieures au 99\textsuperscript{e} percentile ont été écrêtées à ce seuil (29,2 millions d'euros). Cette méthode permet de limiter l'influence des points aberrants sur les estimateurs de variance tout en préservant l'effectif total de l'échantillon \cite{maronna2006}.
+
+\subsection{Transformation logarithmique et traitement de la skewness résiduelle}
+
+Pour rapprocher les distributions d'une forme gaussienne et stabiliser la variance, une transformation logarithmique de type $f(x) = \log(1+x)$ a été appliquée. Cette transformation est sélective :
+\begin{itemize}
+    \item Elle concerne les variables financières (\texttt{revenue}, \texttt{market\_cap}) et environnementales (\texttt{scopes}, \texttt{energy}, \texttt{waste}, \texttt{water}), dont l'asymétrie positive est critique.
+    \item Les variables déjà bornées exprimées en pourcentage, telles que \texttt{independent\_board\_members\_percentage}, sont explicitement exclues de ce traitement car la transformation logarithmique déformerait leur distribution naturelle sans gain de linéarité. 
+    \item Les variables binaires de contrôle sont également conservées dans leur format d'origine.
+\end{itemize}
+
+Conformément au critère de Bulmer \cite{bulmer1979}, une skewness résiduelle supérieure à 1,5 en valeur absolue indique une asymétrie substantielle. Pour les variables \texttt{log\_revenue} et \texttt{log\_hours\_of\_training} dépassant encore ce seuil, une winsorisation complémentaire au top 1\% a été réalisée afin de garantir la robustesse des futurs estimateurs classiques, très sensibles à la contamination des queues de distribution \cite{maronna2006}.
+
+\subsection{Calculs, stabilisation et normalisation des indicateurs d’intensité}
+
+L’efficacité environnementale et sociale a été modélisée par la création de ratios d'intensité calculés dans l'espace logarithmique par soustraction : $\log(A) - \log(B) = \log(A/B)$. Afin de résoudre l'indéfinition mathématique pour les 50 observations où le revenu ($B$) est négatif, le calcul uutilise une translation (décalage basé sur la valeur minimale du dataset). La présence du flag \texttt{revenue\_negative\_flag} permet de signaler ces cas particuliers lors de la modélisation.
+\paragraph{Exemples d’indicateurs :}
+\begin{itemize}
+    \item \textbf{Intensités environnementales} (Scopes 1, 2, 3, énergie, déchets, eau par euro de chiffre d’affaires) : elles reflètent l’empreinte écologique par unité de valeur produite, indicateur clé d’efficience.
+    \item \textbf{Intensité de formation} (heures de formation par employé) : mesure l’effort d’investissement en capital humain par salarié.
+    \item \textbf{Productivité} (chiffre d’affaires par employé) : variable de contrôle liant performance financière et impact ESG.
+\end{itemize}
+
+Bien que calculés dans l’espace logarithmique pour stabiliser les écarts, ces ratios ont nécessité une winsorisation à 1\%, évitant que des entreprises aux revenus extrêmement faibles ne génèrent des valeurs artificiellement gigantesques\cite{maronna2006}.
+
+
+\subsection{Détection des outliers multivariés: des corrections comptables  à l’anomalie métier}
+
+
+\subsubsection{Méthodologie et calcul}
+
+Après avoir construit les ratios d’intensité, nous avons appliqué la distance de Mahalanobis sur deux jeux de variables :
+
+\begin{itemize}
+    \item le premier composé uniquement des variables transformées,
+    \item le second incluant en plus les huit ratios.
+\end{itemize}
+
+Contrairement au simple Z-score, la distance de Mahalanobis tient compte de la matrice de covariance entre les variables pour détecter les anomalies multidimensionnelles. 
+
+Nous avons utilisé un seuil de confiance de 97,5 \% basé sur la loi du $\chi^2$.\cite{astivia2024method}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{images/comparaison_outliers_mahalanobis_avant_apres_ratios (1).png}
+\caption{Impact de l'introduction des ratios d'intensité sur la détection des anomalies multidimensionnelles}
+\label{fig:distribution}
+\end{figure}
+
+
+\subsubsection{Interprétation des anomalies et illustration métier}
+
+Le contraste entre les deux détections d’outliers met en évidence l’apport des ratios :
+
+\begin{itemize}
+    \item \textbf{Sans ratios :} 50 anomalies étaient identifiées, principalement dans le secteur financier à revenus négatifs. Cette détection reflétait davantage des situations comptables exceptionnelles que des comportements ESG atypiques.
+    
+    \item \textbf{Avec les ratios :} seules 35 anomalies subsistent, concentrées dans des secteurs fortement polluants (électricité, acier) ou des entreprises au Scope~3 exceptionnel (1,65~Md€ en moyenne) et avec des rémunérations CEO dépassant 66~M€. Ces observations reflètent une empreinte carbone exceptionnelle et des pratiques de gouvernance extrêmes.
+\end{itemize}
+
+Le feature engineering a ainsi donné une véritable «~conscience métier~» à l’algorithme : au lieu de nettoyer de simples erreurs de saisie, il identifie désormais les entreprises présentant des profils ESG réellement hors norme.
+
+\subsection{Décision finale concernant les outliers multivariés}
+
+L’audit des 35 observations identifiées comme outliers après l’introduction des ratios d’intensité a montré qu’elles sont statistiquement isolées mais que leur influence sur le centre de gravité global des données est négligeable (variation moyenne de 0,07\,\% des variables standardisées, bien en dessous du seuil de 5\,\%).
+
+De plus, l'analyse qualitative montre que ces outliers ne sont pas des erreurs de saisie, mais des profils financiers et ESG spécifiques qui n'écrasent pas le reste de l'échantillon.
+
+Par conséquent, nous avons choisi de conserver ces 35 observations dans le jeu de données.
+
+Cette décision garantit la richesse de l’information tout en assurant la stabilité des analyses ultérieures.
+
+Le jeu de données final est donc prêt pour la standardisation robuste.
+
+\section{Standardisation robuste}
+
+\subsubsection{Standardisation robuste}
+
+Les variables transformées présentent encore des échelles très disparates (certaines s’expriment en unités logarithmiques de tonnes de CO$_2$, d’autres en pourcentages). Une standardisation classique (Z-score) serait sensible aux outliers. Nous avons donc utilisé le \textit{RobustScaler}, qui centre chaque variable par sa médiane et la divise par son écart interquartile (IQR). Cette méthode est naturellement résistante aux points multivariés atypiques identifiés précédemment et garantit que toutes les dimensions — transformées par logarithme ou conservées brutes — contribuent équitablement aux calculs de distance, sans qu’une variable ne domine du seul fait de son unité de mesure.\cite{belkhiria2025predicting}
+
+La formule sous-jacente est la suivante :
+
+\[
+x_i^{\text{scaled}} = \frac{x_i - Q1(x)}{Q3(x) - Q1(x)}
+\]
+
+L’exécution de ce pipeline a permis de transformer les données ESG brutes, initialement marquées par une asymétrie extrême et des anomalies, en un jeu de données \textbf{normalisé, robuste et prêt pour la modélisation}.
+\section{Validation finale : EDA du dataset traité}
+Après l’application du pipeline complet de prétraitement (section 2.5), une nouvelle analyse exploratoire des données a été réalisée afin de vérifier que les problèmes critiques identifiés dans les données brutes ont été corrigés.
+
+Les résultats confirment que le jeu de données final est propre, équilibré et cohérent, et qu’il est désormais adapté à l’application d’algorithmes de clustering.
+
+\subsection{Validation de la correction du biais de rémunération (CEO)}
+
+La figure ci dessous illustre l’effet de la winsorisation appliquée à la variable \texttt{ceo\_compensation}. 
+
+Le graphique de gauche met en évidence la présence de valeurs extrêmes générant un pic anormal dans la distribution. Après transformation (graphique de droite), ces valeurs sont remplacées par le 99\textsuperscript{e} percentile, ce qui permet de restaurer une distribution cohérente sans rupture artificielle.
+
+La ligne verticale rouge indique le seuil de winsorisation, désormais positionné dans la queue supérieure de la distribution.
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{images/figure_3_7_winsorisation_ceo.png}
+\label{fig:Distribution de la rémunération CEO avant/après winsorisation}
+\end{figure}
+\subsection{Vérification de la distribution des variables transformées}
+
+Le tableau 2.1 synthétise l’impact des transformations appliquées sur l’asymétrie des 15 variables numériques.
+
+Les variables \texttt{revenue} et \texttt{hours\_of\_training}, initialement fortement asymétriques, présentent une réduction significative de leur skewness après application d’une winsorisation complémentaire.
+
+La variable \texttt{independent\_board\_members\_percentage} reste inchangée, ce qui est cohérent avec sa distribution initialement symétrique.
+
+Les graphiques de distribution ci dessous montrent une superposition de la moyenne (ligne rouge) et de la médiane (ligne noire), confirmant la symétrisation des variables.
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{images/distrib_finales_alignees.png}
+\label{fig:Distribution de la rémunération CEO avant/après winsorisation}
+\end{figure}
+\subsection{Validation de la structure de corrélation}
+
+Après prétraitement, la structure des corrélations a été réexaminée. La comparaison entre la matrice brute (section 2.4.3) et la matrice traitée (figure~\ref{fig:corr_matrix}) met en évidence plusieurs évolutions majeures.
+
+\paragraph{A -- Stabilité des relations fondamentales}
+
+La corrélation entre le chiffre d’affaires (\texttt{revenue}) et les effectifs (\texttt{employees}) reste élevée, conformément aux attentes économiques. Toutefois, cette relation est plus resserrée après standardisation, ce qui indique une réduction de la colinéarité excessive.
+
+\paragraph{B -- Confirmation du découplage taille--impact}
+
+L’effet de taille sur les variables environnementales est fortement atténué. La corrélation moyenne entre les indicateurs de taille (\texttt{market\_cap}, \texttt{revenue}, \texttt{employees}) et les métriques d’impact environnemental (\texttt{scope\_1}, \texttt{scope\_2}, \texttt{scope\_3}, etc.) est désormais proche de zéro (0,009).
+
+Ce résultat confirme que les transformations (logarithme et winsorisation) ont permis d’isoler la dimension d’intensité environnementale indépendamment de la taille brute des entreprises. Cette approche est cohérente avec l’utilisation de ratios, qui visent à comparer l’efficacité relative plutôt que les valeurs absolues.
+
+\paragraph{C -- Émergence de pôles d’intensité environnementale}
+
+Certaines variables environnementales présentent des corrélations élevées après transformation :
+
+\begin{itemize}
+    \item \texttt{log\_energy\_consumption} $\leftrightarrow$ \texttt{log\_water\_consumption} (0,87)
+    \item \texttt{log\_energy\_consumption} $\leftrightarrow$ \texttt{log\_waste\_production} (0,83)
+    \item \texttt{log\_waste\_production} $\leftrightarrow$ \texttt{log\_water\_consumption} (0,82)
+\end{itemize}
+
+Ces corrélations traduisent la réalité des processus industriels, où énergie, eau et déchets sont étroitement liés. Ces variables forment un bloc environnemental cohérent, qui pourra être réduit via une analyse en composantes principales (PCA) afin de limiter la redondance.
+
+\paragraph{D -- Indépendance des variables de gouvernance}
+
+Les variables de gouvernance (\texttt{independent\_board\_members\_percentage}, \texttt{ceo\_compensation}, \texttt{legal\_costs\_paid\_for\_controversies}) présentent des corrélations faibles avec les variables environnementales et financières.
+
+Cette indépendance, renforcée par le prétraitement, garantit que ces variables apportent une information complémentaire dans l’analyse ESG.
+
+\paragraph{Synthèse}
+
+La matrice de corrélation finale valide l’efficacité du pipeline de prétraitement :
+
+\begin{itemize}
+    \item les relations économiques fondamentales sont préservées
+    \item l’effet de taille est neutralisé
+    \item les variables environnementales forment un bloc cohérent
+    \item les variables de gouvernance restent indépendantes
+\end{itemize}
+
+Ces propriétés rendent le jeu de données particulièrement adapté à la réduction dimensionnelle (PCA) et aux méthodes de clustering non supervisé.
+
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+
+L’analyse exploratoire a démontré que les données ESG brutes, marquées par une hétérogénéité d’échelles et une asymétrie extrême, sont inaptes à une modélisation directe. La mise en œuvre d'un pipeline rigoureux (winsorisation, transformations logarithmiques et calcul de ratios d'intensité) a permis d'avoir un dataset normalisé, robuste et prêt pour l'expérimentation des algorithmes de segmentation non supervisée.

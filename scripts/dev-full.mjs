@@ -58,5 +58,5 @@ process.on('SIGTERM', () => {
 });
 
 children.push(start('npm', ['run', 'dev', '--', '--host'], 'frontend'));
-children.push(start(pickBackendPython(), ['backend/app.py'], 'backend'));
+children.push(start(pickBackendPython(), ['app.py'], 'backend'));
 children.push(start(pickBackendPython(), ['RAG_SYSTEM/app.py'], 'rag-system'));

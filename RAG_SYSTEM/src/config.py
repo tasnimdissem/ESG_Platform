@@ -2,10 +2,9 @@ from pathlib import Path
 import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-ROOT_DIR = BASE_DIR.parent
 
 
-def load_dotenv_file(dotenv_path: Path, override: bool = False) -> None:
+def load_dotenv_file(dotenv_path: Path) -> None:
 	if not dotenv_path.exists():
 		return
 
@@ -17,13 +16,11 @@ def load_dotenv_file(dotenv_path: Path, override: bool = False) -> None:
 		key, value = line.split("=", 1)
 		key = key.strip()
 		value = value.strip().strip('"').strip("'")
-		if key and (override or key not in os.environ):
+		if key and key not in os.environ:
 			os.environ[key] = value
 
 
-# Load workspace-level .env first, then allow RAG_SYSTEM/.env to override if present.
-load_dotenv_file(ROOT_DIR / ".env")
-load_dotenv_file(BASE_DIR / ".env", override=True)
+load_dotenv_file(BASE_DIR / ".env")
 
 RAW_PDFS_DIR = BASE_DIR / "data" / "raw" / "pdfs"
 RAW_ARTICLES_DIR = BASE_DIR / "data" / "raw" / "articles"
@@ -42,3 +39,7 @@ GROQ_TIMEOUT_SECONDS = int(os.getenv("GROQ_TIMEOUT_SECONDS", "60"))
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "")
 OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "90"))
+
+# API integration/auth settings
+API_AUTH_TOKEN = os.getenv("API_AUTH_TOKEN", "")
+API_TIMEOUT_SECONDS = int(os.getenv("API_TIMEOUT_SECONDS", "30"))

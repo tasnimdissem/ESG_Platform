@@ -1,0 +1,55 @@
+\chapter{Réalisation et Implémentation}
+
+\section{Introduction}
+Ce dernier chapitre est consacré à la phase de réalisation de notre projet. Son objectif principal est de présenter la concrétisation des concepts et des modèles élaborés lors de la phase de conception. Nous commencerons par décrire l'environnement matériel et logiciel dans lequel nous avons évolué, ainsi que les choix technologiques adoptés pour le développement de la plateforme ESG. Ensuite, nous détaillerons l'architecture technique mise en place, les différentes interfaces utilisateurs développées, et nous conclurons par la présentation de la stratégie d'intégration de l'intelligence artificielle et du modèle de Machine Learning.
+
+\section{Environnement de développement}
+Afin de mener à bien ce projet dans des conditions optimales, nous avons utilisé un ensemble d'outils matériels et logiciels performants, adaptés au développement d'applications web modernes et à l'intégration de modèles d'intelligence artificielle.
+
+\subsection{Environnement Matériel}
+Le développement, l'entraînement des modèles et les tests ont été réalisés sur une machine de développement présentant les caractéristiques suivantes :
+\begin{itemize}
+    \item \textbf{Processeur :} [À compléter par tes soins, ex: Intel Core i7]
+    \item \textbf{Mémoire vive (RAM) :} [À compléter par tes soins, ex: 16 Go]
+    \item \textbf{Système d'exploitation :} [À compléter, ex: Windows 11]
+    \item \textbf{Carte Graphique (GPU) :} [À compléter si tu as utilisé un GPU, sinon à supprimer]
+\end{itemize}
+
+\subsection{Outils Logiciels}
+Pour la programmation, la gestion des versions et les tests de notre application, nous avons fait appel aux outils suivants :
+\begin{itemize}
+    \item \textbf{Visual Studio Code (VS Code) :} Utilisé comme éditeur de code source principal pour le développement Frontend (React) et Backend (Flask). Il offre de nombreuses extensions facilitant le développement et le débogage.
+    \item \textbf{Jupyter Notebook / Google Colab :} Utilisé pour l'exploration des données, l'entraînement et l'évaluation du modèle de Machine Learning.
+    \item \textbf{Git et GitHub :} Utilisés pour le contrôle de version, facilitant ainsi le travail collaboratif avec ma binôme et le suivi des modifications du code source.
+    \item \textbf{Postman :} Outil indispensable pour tester nos API REST (développées avec Flask) avant leur intégration avec le Frontend.
+\end{itemize}
+
+\section{Choix Technologiques}
+Le choix des technologies est une étape cruciale qui conditionne la scalabilité, les performances et la maintenabilité de la plateforme. Nous avons opté pour des technologies modernes, robustes et adaptées à nos besoins spécifiques.
+
+\subsection{Frontend : React.js}
+Pour le développement de l'interface utilisateur, notre choix s'est porté sur \textbf{React.js}. Il s'agit d'une bibliothèque JavaScript open-source développée par Facebook.
+\begin{itemize}
+    \item \textbf{Justification :} React permet de créer des interfaces utilisateur interactives et dynamiques grâce à son architecture orientée composants. L'utilisation du Virtual DOM garantit des performances optimales, offrant une navigation fluide, ce qui est primordial pour les tableaux de bord interactifs de notre plateforme ESG.
+\end{itemize}
+
+\subsection{Backend : Flask (Python)}
+Pour la partie serveur et la création de l'API, nous avons choisi \textbf{Flask}, un micro-framework web écrit en Python.
+\begin{itemize}
+    \item \textbf{Justification :} Python est le langage de référence pour l'Intelligence Artificielle et la Data Science. Utiliser Flask nous a permis de créer facilement des endpoints d'API légers tout en facilitant l'intégration directe de nos scripts de Machine Learning et de notre système RAG. Contrairement à des frameworks plus lourds, Flask offre la flexibilité nécessaire pour construire une architecture sur mesure.
+\end{itemize}
+
+\subsection{Base de données : PostgreSQL}
+Pour le stockage et la gestion des données de l'application (données des entreprises, indicateurs ESG, utilisateurs), nous avons utilisé \textbf{PostgreSQL}.
+\begin{itemize}
+    \item \textbf{Justification :} PostgreSQL est un système de gestion de base de données relationnelle (SGBDR) open-source très puissant. Il est réputé pour sa fiabilité, sa robustesse, et sa capacité à gérer des requêtes complexes, ce qui est idéal pour manipuler les données structurées des métriques ESG.
+\end{itemize}
+
+\subsection{Intelligence Artificielle et RAG}
+La plateforme intègre des fonctionnalités avancées de traitement du langage naturel via un système RAG (Retrieval-Augmented Generation).
+\begin{itemize}
+    \item \textbf{LangChain :} Framework utilisé pour orchestrer les différents composants de l'IA. Il facilite la connexion entre les modèles de langage (LLM) et nos bases de connaissances locales (documents ESG, rapports).
+    \item \textbf{LLM :} [Mentionner le LLM utilisé, ex: Llama 3 / Mistral / OpenAI] utilisé pour la compréhension des requêtes et la génération des réponses du chatbot.
+\end{itemize}
+
+% La suite (Architecture technique, Interfaces, Modèle ML) sera ajoutée par la suite.

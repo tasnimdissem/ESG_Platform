@@ -1,0 +1,76 @@
+\documentclass[12pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[numbers]{natbib}
+\usepackage[french]{babel}
+\usepackage{hyperref}
+\usepackage{textcomp}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{caption}
+\usepackage{siunitx}
+\usepackage{array}
+\usepackage{rotating}
+\usepackage{makecell} % dans le préambule
+
+% ---- Mise en page ----
+\geometry{margin=2.5cm}
+\onehalfspacing
+\setlength{\emergencystretch}{2em}
+\sloppy
+\hfuzz=500pt
+\hbadness=10000
+
+% ---- Commandes personnalisées ----
+\newcommand{\RNum}[1]{\uppercase\expandafter{\romannumeral #1\relax}}
+
+\begin{document}
+\hypersetup{pageanchor=false}
+\input{./title.tex}
+
+% ---- Page de titre ----
+%\input{./title.tex}
+
+% ---- Page blanche ----
+\newpage
+\thispagestyle{empty}
+\mbox{}
+\newpage
+
+% ---- Compteur de pages ----
+\pagenumbering{roman}
+
+% ---- Tables ----
+\tableofcontents
+\listoffigures
+
+% ---- Espacement tableaux ----
+\renewcommand{\arraystretch}{1.5}
+
+% ---- Contenu ----
+\thispagestyle{empty}
+\input{Acknowledgements}
+\clearpage
+\pagenumbering{arabic}
+\hypersetup{pageanchor=true}
+\input{introduction}
+\input{chap1}
+\input{chap2}
+\input{chap3}
+\input{chap4}
+\input{chap5} % À décommenter/créer quand ta binôme aura fini
+\input{chap6}
+
+
+% ---- Bibliographie ----
+\newpage
+\nocite{*}
+\bibliographystyle{plainnat}
+\bibliography{Mybib.bib}
+
+\end{document}

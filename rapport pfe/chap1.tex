@@ -1,0 +1,274 @@
+\chapter{Cadre général du projet}
+
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+
+Les enjeux environnementaux, sociaux et de gouvernance (ESG) occupent une place
+croissante dans l'évaluation de la performance globale des entreprises. Au-delà des
+indicateurs financiers traditionnels, ces critères permettent d'apprécier la capacité
+des organisations à évoluer de manière durable, responsable et résiliente face aux
+mutations économiques et sociétales.
+
+Dans ce contexte, l'analyse et la gestion du risque ESG représentent un véritable défi,
+en raison de la diversité des indicateurs, de la complexité des données et de leur
+évolution constante. Les approches classiques atteignent rapidement leurs limites,
+ce qui met en évidence l'intérêt des techniques de Business Intelligence et d'analyse
+de données pour renforcer la qualité et la fiabilité des décisions.
+
+Ce chapitre présente le cadre général du projet de prédiction du risque ESG. Il introduit
+l'organisme d'accueil, analyse l'existant et expose la solution proposée ainsi que ses
+apports.
+
+%-----------------------------------------------------
+\section{Présentation de l'organisme d'accueil}
+
+\subsection{Présentation générale de l'entreprise}
+
+Tritux Group est un éditeur de logiciels spécialisé dans l'ingénierie logicielle, le conseil
+en informatique et l'externalisation. Acteur reconnu de la transformation digitale, il
+intervient auprès d'organisations issues des secteurs public et privé en proposant des
+solutions technologiques innovantes et adaptées à leurs besoins.
+
+Fort de plus de 16 années d'expérience, Tritux Group accompagne ses clients dans la
+conception, le déploiement et l'optimisation de leurs systèmes d'information, en
+adoptant une approche personnalisée axée sur la création de valeur.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=6cm]{images/trituxlogo.jpg}
+\caption{Logo de l'entreprise Tritux Group}
+\label{fig:trituxlogo}
+\end{figure}
+
+%-----------------------------------------------------
+\subsection{Activités et domaines d'expertise}
+
+Les activités de Tritux Group couvrent l'ensemble du cycle de vie des projets de
+transformation digitale. Grâce à une expertise multidisciplinaire, l'entreprise assure
+un accompagnement complet allant de l'analyse des besoins à la maintenance des
+solutions mises en œuvre.
+
+\begin{table}[H]
+\centering
+\caption{Domaines d'expertise de Tritux Group}
+\begin{tabular}{|p{4cm}|p{9cm}|}
+\hline
+\textbf{Expertise} & \textbf{Description} \\
+\hline
+Ingénierie logicielle & Développement de systèmes d'information performants et adaptés aux besoins métiers. \\
+\hline
+Audit et conseil IT & Analyse stratégique et accompagnement dans les choix technologiques. \\
+\hline
+Intégration de solutions & Définition et mise en œuvre des spécifications fonctionnelles et techniques. \\
+\hline
+Exploitation et maintenance & Supervision et amélioration continue des systèmes informatiques. \\
+\hline
+Outsourcing & Mise à disposition de ressources spécialisées pour les projets de digitalisation. \\
+\hline
+Support et formation & Services de formation et d'assistance personnalisés. \\
+\hline
+\end{tabular}
+\label{tab:expertise_tritux}
+\end{table}
+
+%-----------------------------------------------------
+\subsection{Positionnement dans les domaines de la finance, de la data et de l'ESG}
+
+Grâce à son expertise en analyse des données et en ingénierie logicielle, Tritux Group se
+positionne comme un partenaire stratégique dans les projets liés à la finance, à la
+Business Intelligence et aux enjeux ESG.
+
+L'entreprise développe des solutions orientées data permettant la collecte, le
+traitement et l'analyse d'informations complexes, facilitant ainsi la prise de décision
+stratégique. Ces compétences sont particulièrement pertinentes pour l'évaluation et la
+prédiction des risques ESG.
+
+%-----------------------------------------------------
+\subsection{Solutions et services proposés}
+
+\begin{table}[H]
+\centering
+\caption{Solutions et services proposés par Tritux Group}
+\begin{tabular}{|p{4cm}|p{9cm}|}
+\hline
+\textbf{Solution} & \textbf{Description} \\
+\hline
+Solutions IoT & Développement de solutions connectées adaptées aux besoins des entreprises. \\
+\hline
+Solutions télécom & Solutions innovantes pour la gestion des services de télécommunication. \\
+\hline
+Solutions IT & Outils informatiques pour la gestion des opérations et des processus métiers. \\
+\hline
+Solutions publiques & Solutions numériques destinées aux institutions publiques et privées. \\
+\hline
+\end{tabular}
+\label{tab:solutions_tritux}
+\end{table}
+
+%-----------------------------------------------------
+\section{Contexte ESG}
+\label{sec:contexte_esg}
+
+\subsection{Importance croissante des critères ESG}
+
+Aujourd'hui, les critères ESG (Environnement, Social et Gouvernance) occupent une place
+centrale dans le monde des entreprises. Ils ne représentent plus seulement une démarche
+de responsabilité sociale, mais un véritable changement dans la manière d'évaluer la
+performance et le risque des entreprises. En effet, de nombreuses études montrent que
+les entreprises qui intègrent sérieusement les enjeux environnementaux, sociaux et de
+gouvernance sont souvent plus résilientes, mieux préparées face aux crises et plus
+performantes sur le long terme.\cite{dougan2025credit}
+\newline
+Les aspects environnementaux, comme le changement
+climatique, les dimensions sociales telles que la gestion du capital humain, ainsi que
+la qualité de la gouvernance, permettent de mieux comprendre des risques que les
+indicateurs financiers traditionnels ne capturent pas toujours.
+
+Parallèlement, les investisseurs exigent davantage de transparence et intègrent les
+critères ESG dans leurs décisions. Cela a conduit les entreprises à adapter leurs
+systèmes de mesure de performance afin d'inclure ces nouvelles dimensions. 
+\cite{dougan2025credit}
+\newline
+Cependant,
+malgré cette importance croissante, la mesure et l'évaluation des performances ESG
+restent complexes et parfois divergentes, ce qui justifie la nécessité d'une analyse
+méthodologique approfondie. Dans ce contexte, la capacité à prédire le risque ESG
+devient également essentielle, car elle permet d'anticiper les vulnérabilités potentielles,
+de renforcer la gestion des risques et d'améliorer la qualité de la prise de décision
+stratégique.
+
+\subsection{Problème de l'incertitude informationnelle ESG}
+
+Malgré l'adoption croissante des critères ESG, le marché se heurte à une incohérence structurelle des notations. Contrairement aux notations financières qui présentent une corrélation proche de 99\%, les scores ESG divergent fortement d'une agence à l'autre pour une même entreprise.
+\cite{berg2020esg}\newline
+Cette absence de consensus s'explique par deux limites majeures des approches traditionnelles :
+
+\begin{itemize}
+    \item \textbf{Hétérogénéité des mesures :} Les fournisseurs de données (MSCI, Sustainalytics, Asset4) utilisent des indicateurs différents pour évaluer un même pilier.
+    
+    \item \textbf{Subjectivité des pondérations :} Le choix de favoriser un critère plutôt qu'un autre (par exemple : privilégier la Gouvernance sur l'Environnement) repose sur des modèles arbitraires qui varient selon les agences.
+\end{itemize}
+
+Ce manque de fiabilité justifie le besoin d'une approche plus objective, afin d’offrir une mesure de performance réelle.
+
+
+
+%-----------------------------------------------------
+\section{Présentation du projet}
+\label{sec:presentation_projet}
+
+\subsection{Problématique du projet}
+Dans un contexte de l'importance des critères ESG, on se trouve face à un double défi : identifier avec précision les entreprises exposées à des risques ESG et comprendre les facteurs qui influencent ces risques. L’hétérogénéité des données ESG et la divergence des méthodologies d’évaluation rendent difficile une analyse fiable. Par ailleurs, au-delà de la simple mesure, les entreprises ont besoin d’outils capables non seulement de prédire leur risque ESG, mais également de fournir des recommandations pour améliorer leur performance.
+
+
+\subsection{Objectifs du projet}
+
+
+L’objectif principal est de mettre en place un système basé sur l’intelligence artificielle permettant de prédire le risque ESG à partir d’indicateurs historiques et de données extra-financières en intégrant un système de recommandation capable d’orienter les décisions vers une amélioration durable.
+
+Plus spécifiquement, le projet poursuit les objectifs suivants :
+
+\begin{itemize}
+    \item Développer un modèle de Machine Learning capable d’estimer le risque ESG de manière fiable et performante ;
+    
+    \item Assurer l’interprétabilité des résultats afin de comprendre les facteurs influençant le risque ;
+    
+    \item Concevoir un système intelligent de recommandation basé sur l’analyse des rapports ESG et RSE ;
+    
+    \item Intégrer des mécanismes de gouvernance responsable garantissant la transparence, l’équité et la robustesse des modèles développés.
+\end{itemize}
+
+Ainsi, ce projet combine prédiction, explicabilité et aide à la décision afin de proposer une solution complète et innovante répondant aux enjeux actuels de la finance durable.
+
+
+\subsection{Organisation et jalons du projet}
+
+Afin d’assurer une progression vers l’atteinte des objectifs fixés, le projet sera structuré autour de plusieurs jalons stratégiques.
+
+\begin{itemize}
+    \item \textbf{Collecte et préparation des données :} La première étape consiste à collecter et consolider les données ESG pertinentes (indicateurs environnementaux, sociaux et de gouvernance, scores historiques, rapports RSE). Cette phase inclut le nettoyage et le prétraitement des données, la construction et la sélection des variables explicatives, ainsi que l’analyse exploratoire des données (EDA).
+    
+    \item \textbf{Modélisation et prédiction :} Une fois les données préparées, la seconde phase porte sur la conception des modèles de prédiction du risque ESG. L’objectif est d’identifier le modèle offrant le meilleur compromis entre performance et stabilité.
+    
+    \item \textbf{Système de recommandation :} Au-delà de la prédiction, le projet intègre un module de recommandation intelligent basé sur l’analyse NLP des rapports ESG et RSE. Ce système génère des recommandations personnalisées visant à réduire le risque identifié et à améliorer durablement la performance ESG.
+    
+    \item \textbf{Validation et audit responsable du modèle :} La dernière étape porte sur la validation globale du système et l’intégration des principes de Responsible AI, notamment la détection des biais potentiels. Cette phase assure la conformité éthique du système développé.
+\end{itemize}
+
+Ces jalons structurent le projet selon une progression logique allant de la préparation des données à la mise en place d’un système intelligent complet de prédiction et de recommandation ESG.
+
+%-----------------------------------------------------
+\section{Méthodologie adoptée}
+
+\subsection{Cadre comparatif: KDD, SEMMA et CRISP-DM}
+
+Le succès d’un projet de Data Science repose sur un cadre méthodologique structuré. Dans le cadre de la prédiction du risque ESG, nous avons comparé trois méthodologies majeures :
+
+\begin{itemize}
+    \item \textbf{KDD (Knowledge Discovery in Databases) :} Approche pionnière, centrée sur l'extraction de connaissances, mais perçue comme trop linéaire pour des processus itératifs complexes.\cite{shafique2014comparative}
+    \item \textbf{SEMMA (Sample, Explore, Modify, Model, Assess) :} Développée par l'institut SAS, elle est très performante pour l'exploration statistique mais reste fortement liée à une approche logicielle.\cite{shafique2014comparative}
+    \item \textbf{CRISP-DM (Cross-Industry Standard Process for Data Mining) :} Standard du marché, elle se distingue par son cycle itératif et sa forte orientation métier (Business Understanding).\cite{shafique2014comparative}
+\end{itemize}
+
+\subsection{Critères d'évaluation méthodologique}
+
+L'analyse comparative repose sur deux critères opérationnels directement liés aux
+propriétés du dataset ESG :
+
+\begin{itemize}
+    \item \textbf{Intégration de la structure panel} : capacité de la méthodologie à prendre en compte une dimension longitudinale (entreprises observées sur plusieurs années).
+
+    \item \textbf{Gestion des variables fortement asymétriques} : aptitude à structurer les étapes de préparation des données afin de traiter des distributions non normales, des valeurs extrêmes et une forte hétérogénéité sectorielle.
+\end{itemize}
+
+Ces critères sont appliqués à la variable de référence Scope 3, caractérisée par une forte dispersion et une asymétrie marquée. 
+
+\subsection{Justification du choix de CRISP-DM}
+\textbf{CRISP-DM} a été retenu pour sa capacité supérieure à gérer la structure panel et la préparation statistique rigoureuse nécessaire à notre base de donnée.
+\cite{wirth2000crisp}
+
+\subsection{Application au projet ESG}
+Le projet suit les six phases itératives du cycle CRISP-DM :
+\begin{itemize}
+    \item \textbf{Business Understanding :} Définir l’objectif analytique.
+    
+    \item \textbf{Data Understanding :} Analyser les distributions et la structure firme-année des données.
+    
+    \item \textbf{Data Preparation :} Nettoyage, gestion des valeurs extrêmes et transformation.
+    
+    \item \textbf{Modeling :} Application des algorithmes (Régression logistique, SVM, Random Forest, XGBoost).
+    
+    \item \textbf{Evaluation :} Mesure les performances.
+    
+    \item \textbf{Deployment :} Conception d'un outil d'aide à la décision pour les décideurs.
+\end{itemize}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{images/crisp-dm2.jpg}
+\caption{Processus itératif de la méthodologie CRISP-DM}
+\label{fig:crisp-dm}
+\end{figure}
+
+\section{Validation empirique du choix méthodologique}
+
+\subsection{Validation de la structure panel}
+L'échantillon comprend 40\,554 observations pour 13\,518 entreprises, chaque firme étant observée trois fois correspondant aux exercices 2018, 2019 et 2020. Cette structure de panel équilibré est cruciale pour suivre l'évolution des risques ESG dans le temps.\cite{baltagi2008econometric}
+\subsection{Distribution des émissions Scope 3}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{images/1 Distribution brute des émissions Scope 3 (1).pdf}
+\caption{Distribution brute des émissions Scope 3}
+\label{fig:scope3_brute}
+\end{figure}
+L'étude des émissions Scope 3 brutes montre une distribution fortement asymétrique à droite : la majorité des entreprises ont des émissions modérées, tandis qu'une minorité présente des valeurs extrêmement élevées. Cette forte dispersion viole l'hypothèse de normalité, ce qui pourrait rendre les modèles prédictifs instables.
+\subsection{Transformation logarithmique}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{images/2 Distribution des émissions Scope 3 après transformation logarithmique (1).pdf}
+\caption{Distribution des émissions Scope 3 après transformation logarithmique}
+\label{fig:scope3_log}
+\end{figure}
+Afin de corriger l’asymétrie observée, une transformation logarithmique  Log(Scope 3 + 1) a été appliquée, ce qui permet de réduire l’impact des valeurs extrêmes, de compresser la dispersion et de rapprocher la distribution d’une forme plus symétrique. Cette étape améliore la robustesse des futurs modèles prédictifs et constitue une phase essentielle de préparation des données dans le cadre méthodologique retenu.\cite{benoit2011linear}
+\section*{Conclusion du chapitre}
+\addcontentsline{toc}{section}{Conclusion}
+Le choix de la méthodologie \textbf{CRISP-DM } ne repose pas sur une préférence théorique, mais sur une adéquation technique avec les données. La structure itérative permet de gérer efficacement le panel de 13 518 entreprises et de traiter statistiquement l'asymétrie des émissions Scope 3. Cette rigueur méthodologique permet de passer à l'analyse exploratoire détaillée, socle de la future modélisation prédictive.

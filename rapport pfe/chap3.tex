@@ -1,0 +1,183 @@
+\chapter{Approche initiale : Évaluation critique du clustering pour la segmentation ESG}
+
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+
+Ce chapitre détaille notre premier cycle expérimental, dont l’objectif est de segmenter les observations du dataset en groupes homogènes. Notre jeu de données comprend 13 518 entreprises uniques observées sur trois années (2018--2020), soit un total de 40 554 observations (firm-year).
+
+En l’absence de variable cible dans notre jeu de données, nous avons opté pour une approche d’apprentissage non supervisé. L’idée consistait à attribuer une note ESG fixe à chaque groupe afin de simplifier la classification des entreprises.
+
+Le cadre technique s’appuie sur trois algorithmes de clustering, ainsi que sur une méthodologie d’évaluation rigoureuse. Cette analyse est suivie d’un examen approfondi des résultats, mettant en évidence les enseignements tirés de cette expérimentation ainsi que les limites de cette approche face à la nature réelle des données ESG.
+
+\section{Méthodologie : les algorithmes et l’évaluation}
+\subsection{Choix des modèles}
+Nous avons utilisé trois algorithmes complémentaires, afin de ne pas dépendre des biais d’un seul modèle :
+\subsubsection{K-Means}
+Le premier modèle étudié est\textbf{ K-Means}.
+
+\begin{itemize}
+    \item \textbf{Sensibilité critique aux valeurs extrêmes :} L'algorithme cherche à minimiser l'inertie intra-classe, calculée à partir des distances euclidiennes au carré par rapport à la moyenne :
+\end{itemize}
+
+\begin{equation}
+\sum_{i=0}^{n} \min_{\mu_j \in C} \left( \|x_i - \mu_j\|^2 \right)
+\end{equation}
+
+Comme nous avons fait le choix stratégique de conserver les valeurs extrêmes lors de l'exploration des données, une seule entreprise aux valeurs extrêmes peut déplacer le centre d’un groupe, faussant ainsi la position de tout le cluster.
+
+\begin{itemize}
+    \item \textbf{Le "Centroïde Virtuel" (L’entreprise artificielle) :} Le centre calculé par K-Means est une moyenne arithmétique. Ce point ne correspond bien souvent à \textbf{aucune entreprise réelle du dataset}. Cela rend l’interprétation métier difficile.
+
+    \item \textbf{Une séparation artificielle et arbitraire :} K-Means impose une structure de type "sphérique", cela peut forcer un \textbf{découpage brutal au milieu d’un nuage de points}, même si les entreprises se mélangent et qu’il n’y a pas de séparation réelle.
+\end{itemize}\cite{sklearn_kmeans}
+\subsubsection{GMM (Gaussian Mixture Model)}
+
+Le passage au \textbf{GMM} répond au besoin de dépasser la rigidité géométrique du K-Means en s'adaptant mieux à la forme réelle de nos données ESG.
+
+\subparagraph{De la segmentation rigide à la probabilité d'appartenance}
+
+Contrairement au K-Means qui impose un choix binaire, le GMM attribue à chaque entreprise une \textbf{probabilité d'appartenance} à chaque cluster.
+
+\subparagraph{De la distance Euclidienne à la distance de Mahalanobis}
+
+Alors que K-Means utilise la distance euclidienne, le GMM s'appuie sur la distance de Mahalanobis en étudiant la matrice de covariance. Cette approche est cohérente avec les étapes de préparation décrites au chapitre précédent. 
+
+Ainsi, le modèle est capable de capturer des clusters en forme d'\textbf{ellipses}, ce qui est beaucoup plus cohérent avec nos données corrélées entre elles.
+
+\subparagraph{Formulation mathématique}
+
+Un modèle de mélange gaussien est défini comme une combinaison de distributions normales :
+
+\begin{equation}
+p(x) = \sum_{k=1}^{K} \pi_k \, \mathcal{N}(x \mid \mu_k, \Sigma_k)
+\end{equation}
+
+où :
+\begin{itemize}
+    \item $\pi_k$ est le poids du cluster $k$
+    \item $\mu_k$ est le vecteur moyenne
+    \item $\Sigma_k$ est la matrice de covariance
+\end{itemize}
+
+\subparagraph{Limites du modèle}
+
+Bien que nos étapes de préparation aient permis de symétriser les distributions (comme démontré dans le Tableau 2.4), un obstacle persiste.
+
+Le GMM finit par \textbf{mélanger les groupes} au lieu de les séparer. De plus, il force chaque entreprise à entrer dans un groupe, même celles ayant un profil très atypique et isolé.
+
+Ce mélange empêche d'obtenir des catégories précises pour notre système de notation.\cite{reynolds2009gmm} \cite{sklearn_gmm}
+\subsubsection{HDBSCAN (Hierarchical Density-Based Spatial Clustering of Applications with Noise)}
+
+Le passage à \textbf{HDBSCAN} est l’étape finale de notre diagnostic. Il ne cherche plus des formes (sphères ou ellipses), mais des \textbf{zones de forte densité}.
+
+\begin{itemize}
+    \item \textbf{Valeur ajoutée :} Il explore les données pour identifier des \textbf{clusters imbriqués} les uns dans les autres. Il est capable de repérer des groupes de formes très complexes et de densités variables, ce qui correspond mieux à la réalité de notre dataset.
+    
+    \item \textbf{L’honnêteté statistique :} Alors que K-Means et GMM forcent chaque entreprise à intégrer un groupe, HDBSCAN possède la capacité de refuser de classer et étiqueter comme \textbf{bruit}.\cite{campello2013hdbscan}
+\end{itemize}
+
+\subsection{Métriques d’évaluation}
+
+Pour évaluer la qualité des partitions issues du clustering, nous avons utilisé trois indicateurs :
+
+\begin{itemize}
+    \item \textbf{Score de Silhouette :} mesure la cohésion interne d’un groupe (plus il est proche de 1, mieux c’est).
+    
+    \item \textbf{Indice de Davies-Bouldin (DBI) :} évalue la séparation entre les groupes (plus il est bas, mieux c’est).
+    
+    \item \textbf{Adjusted Rand Index (ARI) :} compare deux partitions (K-Means et GMM) ; un ARI proche de 1 signifie un accord parfait.
+    
+    \item \textbf{Critères BIC et AIC :} le BIC (Bayesian Information Criterion) et l’AIC (Akaike Information Criterion) sont utilisés pour sélectionner le nombre optimal de composantes dans GMM.\cite{ashari2023analysis}
+\end{itemize}
+\subsection{Optimisation des hyperparamètres}
+Nous avons fait varier le nombre de clusters $k$ de 2 à 10 pour les algorithmes K-Means et GMM, en maximisant le score de silhouette et l’Adjusted Rand Index (ARI), tout en minimisant le critère BIC.
+
+Pour HDBSCAN, le paramètre \texttt{min\_cluster\_size} a été fixé à 1\,\% de l’effectif total (soit environ 405 observations), seuil couramment utilisé pour les jeux de données de grande taille.
+
+Les résultats détaillés sont présentés dans la section suivante.\cite{hdbscan_docs_api}
+\section{Évaluation : analyse des performances du clustering}
+\subsection{Résultats quantitatifs}
+Le graphique de l’indice de Silhouette montre une chute brutale après $k = 2$ :
+\begin{itemize}
+    \item $k = 2 \rightarrow 0{,}43$
+    \item $k = 7 \rightarrow 0{,}28$
+    \item $k = 10 \rightarrow 0{,}29$
+\end{itemize}
+
+Une bonne valeur de silhouette devrait être au moins supérieure à $0{,}5$. 
+Ici, elle reste faible, ce qui indique que les groupes ne sont pas bien séparés.
+
+\paragraph{Analyse de l’Adjusted Rand Index (ARI)}
+
+L’ARI entre K-Means et GMM est très faible. Le maximum est atteint à $k = 7$ avec une valeur de $0{,}39$. 
+Un ARI inférieur à $0{,}5$ signifie que les deux algorithmes ne sont pas en accord. 
+Les partitions obtenues sont donc sensiblement différentes.
+
+\paragraph{Analyse des critères BIC et AIC}
+
+Les critères BIC et AIC du modèle GMM diminuent progressivement jusqu’à atteindre un minimum pour $10$ composantes.
+
+\paragraph{HDBSCAN} détecte 13 groupes, mais il rejette 38{,}68\,\% des entreprises comme bruit (15\,686 points). 
+En clair, plus d’un tiers des données ne s’agrège à aucun groupe dense.
+
+\subsection{Résultats qualitatifs}
+
+La confrontation des trois algorithmes aboutit aux résultats suivants :
+\begin{itemize}
+    \item \textbf{ Consensus strict (Accord total):} seulement 3\,798 entreprises (9{,}4\,\%) sont assignées de manière cohérente.
+    
+    \item \textbf{ Consensus instable (Accord partiel):} 16\,847 entreprises (41{,}5\,\%) varient selon l'algorithme utilisé.
+    
+    \item \textbf{Absence de consensus (Bruit structurel):} 19\,909 entreprises (49{,}1\,\%) ne présentent aucune structure de groupe identifiable.
+\end{itemize}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{images/repartition_consensus_final.png}
+\caption{Niveau d'accord entre les trois modèles de clustering}
+\end{figure}
+La majorité des entreprises ne sont classées de façon stable par aucun algorithme.
+Ce faible niveau de consensus confirme l’absence de structure stable dans les données.
+\subsection{ Le problème de concordance}
+\begin{itemize}
+    \item K-Means donne $k = 7$.
+    \item GMM donne 10 composants.
+    \item HDBSCAN trouve 13 clusters.
+\end{itemize}
+
+Ce désaccord prouve que la segmentation dépend de l'outil et non de la donnée. 
+L'absence de partition naturelle évidente souligne la porosité des frontières entre les profils d'entreprises.
+
+\subsection{Discussion : les limites de l’approche par classification}
+
+\subsubsection{Analyse visuelle : un continuum sans séparation}
+
+Le graphique de projection PCA montre la position des 40\,554 entreprises dans un espace réduit à deux dimensions. 
+Les points sont colorés selon leur classe de consensus : gris clair pour le bruit structurel, orange pour les zones d’accord partiel, vert pour les entreprises en accord total.
+
+\paragraph{Observations clés}
+
+\begin{itemize}
+    \item Les points se chevauchent totalement. Il n’y a aucun espace vide entre les groupes.
+    
+    \item Même les entreprises du Core Consensus (en vert) ne sont pas isolées. Elles sont mélangées avec les autres.
+\end{itemize}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{images/pca_consensus_classes.png}
+\caption{Visualisation du continuum ESG par projection PCA}
+\end{figure}
+\subsubsection{Le Problème du Continuum : Segmentation Artificielle vs Réalité des Données}
+
+Ces résultats prouvent une chose simple : la performance ESG n’est pas une catégorie. Ce n’est pas un label du type « bon », « moyen » ou « mauvais ». C’est un spectre continu. Une entreprise peut être un peu meilleure qu’une autre, sans qu’il y ait de rupture franche.
+
+Forcer une étiquette sur une donnée continue est arbitraire. Cela reviendrait à découper arbitrairement un dégradé de couleurs en trois zones. On perdrait beaucoup d’information. L’échec du clustering (faible silhouette, ARI médiocre, fort bruit) trouve ici sa traduction visuelle.
+
+\subsubsection{Conclusion de la première expérimentation : la nécessité d’un changement d’approche}
+
+Cette première phase de clustering, bien qu’elle n’ait pas produit une segmentation exploitable, a été une étape essentielle du processus de recherche. Elle a clairement montré qu’une approche par classification non supervisée ne permet pas de partitionner nos données ESG en groupes distincts.
+
+Les enseignements sont doubles. D’une part, les entreprises ne se répartissent pas en clusters séparés et l’absence de séparation visuelle sur le graphique PCA. D’autre part, l’objectif même de l’analyse doit être reformulé : au lieu de vouloir attribuer une étiquette discrète à chaque entreprise, nous devons construire un score ESG continu, capable de refléter la position de chaque firme sur un spectre allant des moins performantes aux plus vertueuses.
+
+\section*{Conclusion}
+
+Le clustering ne permet pas de segmenter les entreprises en groupes distincts. Nous abandonnons donc cette approche pour construire un score continu, ce qui sera l’objet du chapitre 4.

@@ -1,6 +1,28 @@
 version: '3.8'
 
 services:
+  # Postfix relay that receives mail from Flask and forwards it to Gmail SMTP
+  postfix:
+    build:
+      context: ./postfix
+    container_name: postfix
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - POSTFIX_MYHOSTNAME=${POSTFIX_MYHOSTNAME:-postfix.local}
+      - POSTFIX_MYNETWORKS=${POSTFIX_MYNETWORKS:-127.0.0.0/8 [::1]/128 172.16.0.0/12}
+      - POSTFIX_RELAY_HOST=${POSTFIX_RELAY_HOST:-[smtp.gmail.com]:587}
+      - GMAIL_USER=${GMAIL_USER}
+      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
+    expose:
+      - "25"
+    volumes:
+      - postfix_queue:/var/spool/postfix
+      - postfix_logs:/var/log/postfix
+    networks:
+      - esg-network
+
   # PostgreSQL database for authentication
   postgres:
     image: postgres:16-alpine
@@ -56,7 +78,13 @@ services:
       - RAG_API_BASE_URL=http://rag:8000
       - DATABASE_URL=postgresql://esg_user:esg_password@postgres:5432/esg_db
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - MAIL_SERVER=postfix
+      - MAIL_PORT=25
+      - MAIL_USE_TLS=False
+      - MAIL_USE_SSL=False
     depends_on:
+      postfix:
+        condition: service_started
       rag:
         condition: service_started
       postgres:
@@ -84,6 +112,8 @@ volumes:
   postgres_data:
   rag_data:
   rag_storage:
+  postfix_queue:
+  postfix_logs:
 
 networks:
   esg-network:
