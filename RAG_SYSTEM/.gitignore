@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Environment secrets
+.env
+
+# IDE
+.vscode/
+
+# Build/cache
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+
+# Local model/index artifacts
+storage/faiss_index/*.faiss
+storage/faiss_index/*.json
+
+# Oversized source files
+data/raw/pdfs/2022-tesla-impact-report.pdf

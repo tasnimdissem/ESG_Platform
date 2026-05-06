@@ -6,7 +6,7 @@ from typing import Any
 import requests
 from flask import current_app
 
-from services.local_rag_service import generate_local_recommendations
+from backend.services.local_rag_service import generate_local_recommendations
 
 
 REQUIRED_FIELDS = [
@@ -186,6 +186,10 @@ def get_recommendations(payload: Any | None = None) -> dict[str, Any]:
     rag_used = False
 
     rag_url = str(current_app.config.get('RAG_API_URL', '')).strip()
+    if not rag_url:
+        base_url = str(current_app.config.get('RAG_API_BASE_URL', 'http://localhost:8000')).strip().rstrip('/')
+        rag_url = f"{base_url}/api/v1/query"
+
     top_k = _safe_int(current_app.config.get('RAG_TOP_K', 3), 3)
 
     if rag_url:

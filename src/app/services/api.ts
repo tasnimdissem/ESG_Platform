@@ -93,6 +93,17 @@ type IntegrationResponse = {
   };
 };
 
+type RagQueryResponse = {
+  input?: {
+    question?: string;
+    top_k?: number;
+  };
+  output?: {
+    answer?: string;
+    sources?: IntegrationSource[];
+  };
+};
+
 type RecommendationsQuery = {
   score?: number;
   risk_level?: string;
@@ -209,6 +220,7 @@ function normalizeRecommendationItems(items: IntegrationRecommendation[] | undef
 
 export async function fetchChatResponse(message: string): Promise<ChatResponse> {
   const data = await fetchIntegration({
+    client_request_id: `chat-${Date.now()}`,
     message,
     top_k: 5,
     include_recommendations: false,
@@ -217,7 +229,7 @@ export async function fetchChatResponse(message: string): Promise<ChatResponse> 
   return {
     answer: data.response?.answer ?? '',
     sources: normalizeSourceLabels(data.response?.sources),
-    confidence: Number(data.response?.confidence ?? 0),
+    confidence: data.response?.sources?.length ? 0.9 : 0,
   };
 }
 

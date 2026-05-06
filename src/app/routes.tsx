@@ -1,10 +1,14 @@
 import { createBrowserRouter, Navigate } from 'react-router';
 import { useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Analytics from './pages/Analytics';
 import ChatbotRag from './pages/ChatbotRag';
 import RecommendationsRag from './pages/RecommendationsRag';
+import Prediction from './pages/Prediction';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -25,6 +29,18 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <Login />,
+  },
+  {
+    path: '/register',
+    element: <Register />,
+  },
+  {
+    path: '/forgot-password',
+    element: <ForgotPassword />,
+  },
+  {
+    path: '/reset-password',
+    element: <ResetPassword />,
   },
   {
     path: '/',
@@ -49,6 +65,10 @@ export const router = createBrowserRouter([
       {
         path: 'recommendations',
         element: <RecommendationsRag />,
+      },
+      {
+        path: 'prediction',
+        element: <Prediction />,
       },
     ],
   },

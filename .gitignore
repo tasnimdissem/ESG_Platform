@@ -13,6 +13,12 @@ __pycache__/
 venv/
 env/
 
+# ML Models - NEVER commit binary model files (~40MB+ and impossible to diff)
+# Use Git LFS or store on S3/GCS for production models
+/backend/model/*.cbm
+/backend/model/*.pkl
+/backend/model/target_encoder.pkl
+
 # Dependencies
 /node_modules
 /.pnp
@@ -28,6 +34,7 @@ env/
 
 # Environment variables
 .env
+.env.docker
 .env.local
 .env.development.local
 .env.test.local

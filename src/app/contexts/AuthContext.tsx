@@ -1,71 +1,107 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
   role: string;
+  created_at?: string | null;
 }
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
+  isAuthLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const AUTH_BASE_URL = '/api/auth';
+
+type AuthResponse = {
+  message: string;
+  user: User;
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
+  // Restore session on mount - check /me endpoint (cookies are sent automatically)
   useEffect(() => {
-    // Check if user is stored in localStorage
-    const storedUser = localStorage.getItem('esg_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    const restoreSession = async () => {
+      try {
+        const response = await fetch(`${AUTH_BASE_URL}/me`, {
+          credentials: 'include', // Send cookies with request
+        });
+
+        if (!response.ok) {
+          setUser(null);
+          return;
+        }
+
+        const data = (await response.json()) as { user: User };
+        setUser(data.user);
+      } catch {
+        setUser(null);
+      } finally {
+        setIsAuthLoading(false);
+      }
+    };
+
+    void restoreSession();
   }, []);
 
   const login = async (email: string, password: string) => {
-    // Validate input
     if (!email || !password) {
       throw new Error('Email and password are required');
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      throw new Error('Invalid email format');
+    const response = await fetch(`${AUTH_BASE_URL}/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // Send cookies with request
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      let message = 'Login failed';
+
+      try {
+        const parsed = JSON.parse(errorBody) as { error?: string; message?: string };
+        message = parsed.error ?? parsed.message ?? message;
+      } catch {
+        if (errorBody) {
+          message = errorBody;
+        }
+      }
+
+      throw new Error(message);
     }
 
-    // Validate password minimum length
-    if (password.length < 6) {
-      throw new Error('Password must be at least 6 characters');
-    }
-
-    // Mock authentication - in real app, this would call your API
-    // For demo purposes, we'll accept credentials but validate them properly
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockUser: User = {
-      id: '1',
-      name: 'Analyste ESG',
-      email: email,
-      role: 'Data Scientist'
-    };
-    
-    setUser(mockUser);
-    localStorage.setItem('esg_user', JSON.stringify(mockUser));
+    const data = (await response.json()) as AuthResponse;
+    setUser(data.user);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await fetch(`${AUTH_BASE_URL}/logout`, {
+        method: 'GET',
+        credentials: 'include', // Send cookies with request
+      });
+    } catch {
+      // Ignore errors during logout
+    }
     setUser(null);
-    localStorage.removeItem('esg_user');
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isAuthLoading }}>
       {children}
     </AuthContext.Provider>
   );

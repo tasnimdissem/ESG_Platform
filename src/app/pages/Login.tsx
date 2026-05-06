@@ -28,7 +28,6 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 flex items-center justify-center p-4">
       <div className="w-full max-w-6xl grid md:grid-cols-2 gap-8 items-center">
-        {/* Left side - Branding */}
         <div className="text-white space-y-6">
           <div className="flex items-center gap-3">
             <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center">
@@ -39,11 +38,11 @@ export default function Login() {
               <p className="text-emerald-200">Intelligence Platform</p>
             </div>
           </div>
-          
+
           <p className="text-xl text-emerald-100">
             Plateforme innovante de prédiction et d'analyse des scores ESG utilisant le Machine Learning
           </p>
-          
+
           <div className="space-y-4 pt-6">
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -54,7 +53,7 @@ export default function Login() {
                 <p className="text-sm text-emerald-200">Algorithmes de Machine Learning pour prédire les scores ESG</p>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                 <span className="text-emerald-300">✓</span>
@@ -64,7 +63,7 @@ export default function Login() {
                 <p className="text-sm text-emerald-200">Visualisations interactives et insights détaillés</p>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                 <span className="text-emerald-300">✓</span>
@@ -77,11 +76,10 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Right side - Login Form */}
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <h2 className="text-2xl font-bold mb-2">Bienvenue</h2>
           <p className="text-gray-600 mb-8">Connectez-vous pour accéder à la plateforme</p>
-          
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {errorMessage && (
               <div className="bg-red-50 text-red-700 border border-red-200 rounded-lg p-3 text-sm">
@@ -127,7 +125,6 @@ export default function Login() {
               {isLoading ? 'Connexion...' : 'Se connecter'}
               <ArrowRight className="w-5 h-5" />
             </button>
-
           </form>
 
           <div className="mt-6 flex items-center justify-between text-sm">

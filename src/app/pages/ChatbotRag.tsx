@@ -138,9 +138,9 @@ export default function ChatbotRag() {
                     <p className="text-sm whitespace-pre-line leading-relaxed">{message.text}</p>
                     {message.sources && message.sources.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {message.sources.map((source) => (
+                        {message.sources.map((source, index) => (
                           <span
-                            key={source}
+                            key={`${source}-${index}`}
                             className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-semibold text-gray-700"
                           >
                             {source}

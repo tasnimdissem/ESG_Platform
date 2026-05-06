@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify, request
 
-from services.esg_service import compute_esg_score, get_recommendations, validate_predict_payload
-from services.integration_service import build_integration_response
-from services.news_service import fetch_esg_news
+from backend.services.esg_service import compute_esg_score, get_recommendations, validate_predict_payload
+from backend.services.integration_service import build_integration_response
+from backend.services.news_service import fetch_esg_news
 
 
 api_bp = Blueprint('api', __name__)
@@ -50,22 +50,6 @@ def integration() -> object:
         return jsonify({'error': 'Unexpected internal error'}), 500
 
 
-@api_bp.route('/predict', methods=['POST'])
-def predict() -> object:
-    payload = request.get_json(silent=True)
-    is_valid, features, error = validate_predict_payload(payload)
-
-    if not is_valid:
-        return jsonify({'error': error}), 400
-
-    prediction = compute_esg_score(features)
-    return jsonify(
-        {
-            'status': 'success',
-            'prediction': prediction,
-            'message': 'Dummy ESG prediction returned successfully.',
-        }
-    )
 
 
 @api_bp.route('/recommend', methods=['POST'])

@@ -1,0 +1,25 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies for FAISS/OpenMP
+RUN apt-get update && apt-get install -y \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies
+COPY RAG_SYSTEM/requirements.txt ./RAG_SYSTEM/
+RUN pip install --no-cache-dir -r RAG_SYSTEM/requirements.txt
+
+# Copy RAG system source
+COPY RAG_SYSTEM/ ./RAG_SYSTEM/
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+EXPOSE 8000
+
+# Change working directory to the RAG system root for internal imports
+WORKDIR /app/RAG_SYSTEM
+
+CMD ["python", "app.py"]
