@@ -11,17 +11,17 @@ interface User {
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
   isAuthLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_STORAGE_KEY = 'esg_token';
+const AUTH_BASE_URL = '/api/auth';
 
 type AuthResponse = {
-  access_token: string;
+  message: string;
   user: User;
 };
 
@@ -29,23 +29,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
+  // Restore session on mount - check /me endpoint (cookies are sent automatically)
   useEffect(() => {
     const restoreSession = async () => {
-      const token = localStorage.getItem(TOKEN_STORAGE_KEY);
-      if (!token) {
-        setIsAuthLoading(false);
-        return;
-      }
-
       try {
-        const response = await fetch('/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        const response = await fetch(`${AUTH_BASE_URL}/me`, {
+          credentials: 'include', // Send cookies with request
         });
 
         if (!response.ok) {
-          localStorage.removeItem(TOKEN_STORAGE_KEY);
           setUser(null);
           return;
         }
@@ -53,7 +45,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = (await response.json()) as { user: User };
         setUser(data.user);
       } catch {
-        localStorage.removeItem(TOKEN_STORAGE_KEY);
         setUser(null);
       } finally {
         setIsAuthLoading(false);
@@ -68,11 +59,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Email and password are required');
     }
 
-    const response = await fetch('/api/auth/login', {
+    const response = await fetch(`${AUTH_BASE_URL}/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include', // Send cookies with request
       body: JSON.stringify({ email, password }),
     });
 
@@ -93,12 +85,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const data = (await response.json()) as AuthResponse;
-    localStorage.setItem(TOKEN_STORAGE_KEY, data.access_token);
     setUser(data.user);
   };
 
-  const logout = () => {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
+  const logout = async () => {
+    try {
+      await fetch(`${AUTH_BASE_URL}/logout`, {
+        method: 'GET',
+        credentials: 'include', // Send cookies with request
+      });
+    } catch {
+      // Ignore errors during logout
+    }
     setUser(null);
   };
 

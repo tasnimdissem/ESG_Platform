@@ -9,7 +9,7 @@ import numpy as np
 from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 
-from src import config
+from . import config
 
 _EMBEDDER = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 

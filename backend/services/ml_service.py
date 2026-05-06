@@ -1,7 +1,6 @@
 import os
 import joblib
 import pandas as pd
-from catboost import CatBoostRegressor
 
 # Safe relative paths based on the project structure (backend/services/ml_service.py -> backend/model)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,6 +27,13 @@ class MLService:
             return
 
         try:
+            try:
+                from catboost import CatBoostRegressor
+            except ImportError as exc:
+                raise RuntimeError(
+                    "CatBoost is not installed in this environment. Install backend requirements before using prediction."
+                ) from exc
+
             # 1. Load CatBoost Model
             self.model = CatBoostRegressor()
             self.model.load_model(MODEL_PATH)

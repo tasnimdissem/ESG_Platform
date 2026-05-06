@@ -1,7 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { Calculator, Activity, Leaf, Users, Building, ShieldCheck, Zap, Download } from 'lucide-react';
+import { fetchRecommendations, type RecommendationItem } from '../services/api';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+
+type ValidationErrorDetail = {
+  field: string;
+  message: string;
+};
 
 const initialFormState = {
   primary_industry: 'Technology',
@@ -32,9 +38,11 @@ const initialFormState = {
 export default function Prediction() {
   const [formData, setFormData] = useState(initialFormState);
   const [score, setScore] = useState<number | null>(null);
+  const [suggestions, setSuggestions] = useState<RecommendationItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<ValidationErrorDetail[]>([]);
   const resultPanelRef = useRef<HTMLDivElement>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -49,6 +57,7 @@ export default function Prediction() {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setValidationErrors([]);
     setScore(null);
 
     try {
@@ -65,10 +74,25 @@ export default function Prediction() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (Array.isArray(data.details)) {
+          setValidationErrors(
+            data.details
+              .filter((detail: any) => detail && typeof detail.field === 'string' && typeof detail.message === 'string')
+              .map((detail: any) => ({ field: detail.field, message: detail.message }))
+          );
+        }
+
         throw new Error(data.error || 'Erreur lors de la prédiction');
       }
 
       setScore(data.score);
+      // Fetch top recommendations to show inline with the score
+      try {
+        const recs = await fetchRecommendations({ score: data.score, focus_area: formData.primary_industry });
+        setSuggestions(recs.recommendations?.slice(0, 3) ?? []);
+      } catch {
+        setSuggestions([]);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -128,10 +152,10 @@ export default function Prediction() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <Calculator className="w-8 h-8 text-emerald-600" />
-            Simulateur de Score ESG
+            Calculateur de Score ESG
           </h1>
           <p className="text-gray-500 mt-2">
-            Ajustez les métriques de l'entreprise pour prédire instantanément son score ESG via notre modèle d'Intelligence Artificielle.
+            Entrez les métriques de l'entreprise pour calculer son score ESG via notre modèle.
           </p>
         </div>
       </div>
@@ -245,9 +269,25 @@ export default function Prediction() {
             </button>
 
             {error && (
-              <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200 flex items-center gap-3">
-                <ShieldCheck className="w-5 h-5" />
-                {error}
+              <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 space-y-3">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck className="w-5 h-5 text-red-500" />
+                  <p className="font-medium">{error}</p>
+                </div>
+
+                {validationErrors.length > 0 && (
+                  <div className="rounded-lg bg-white/80 border border-red-100 p-3">
+                    <p className="text-sm font-semibold text-red-700 mb-2">Détails de validation</p>
+                    <ul className="space-y-2 text-sm">
+                      {validationErrors.map((validationError) => (
+                        <li key={`${validationError.field}-${validationError.message}`} className="flex gap-2">
+                          <span className="font-semibold text-red-600 min-w-0 shrink-0">{validationError.field}:</span>
+                          <span className="text-red-700">{validationError.message}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </form>
@@ -300,6 +340,33 @@ export default function Prediction() {
                     <Download className="w-5 h-5" />
                     {isExporting ? 'Génération...' : 'Exporter en PDF'}
                   </button>
+
+                  {/* Inline recommendations */}
+                  {suggestions.length > 0 && (
+                    <div className="mt-6">
+                      <h4 className="font-semibold mb-3">Recommandations suggérées</h4>
+                      <div className="space-y-3">
+                        {suggestions.map((rec) => (
+                          <div key={rec.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="font-semibold text-sm">{rec.title}</p>
+                                <p className="text-xs text-gray-600 mt-1">Impact: +{rec.impact} pts • Effort: {rec.effort}</p>
+                              </div>
+                              <div>
+                                <button
+                                  onClick={() => (window.location.href = `/recommendations?focus=${encodeURIComponent(formData.primary_industry)}`)}
+                                  className="text-sm text-emerald-600 font-semibold"
+                                >
+                                  Voir tout
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (

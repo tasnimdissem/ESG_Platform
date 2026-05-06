@@ -73,10 +73,9 @@ services:
     container_name: esg-backend
     restart: always
     env_file:
-      - .env
+      - .env.docker
     environment:
       - RAG_API_BASE_URL=http://rag:8000
-      - DATABASE_URL=postgresql://esg_user:esg_password@postgres:5432/esg_db
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - MAIL_SERVER=postfix
       - MAIL_PORT=25

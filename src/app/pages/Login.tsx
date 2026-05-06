@@ -11,6 +11,11 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  const fillDemoCredentials = () => {
+    setEmail('demo@esg.local');
+    setPassword('demo1234');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -88,6 +93,18 @@ export default function Login() {
                 {errorMessage}
               </div>
             )}
+
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+              <div className="font-semibold">Compte de démonstration local</div>
+              <div>demo@esg.local / demo1234</div>
+              <button
+                type="button"
+                onClick={fillDemoCredentials}
+                className="mt-2 text-emerald-700 font-semibold hover:underline"
+              >
+                Pré-remplir le formulaire
+              </button>
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>

@@ -5,10 +5,10 @@ from typing import Any, Dict, List, Tuple
 
 from flask import Flask, jsonify, request
 
-from src import config
-from src.ingestion import ingest_sources
-from src.rag_engine import RagEngine
-from src.structured_transform import transform_chunks
+from .src import config
+from .src.ingestion import ingest_sources
+from .src.rag_engine import RagEngine
+from .src.structured_transform import transform_chunks
 
 app = Flask(__name__)
 rag = RagEngine()
