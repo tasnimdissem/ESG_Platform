@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
-import { Calculator, Activity, Leaf, Users, Building, ShieldCheck, Zap, Download } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Calculator, Activity, Leaf, Users, Building, ShieldCheck, Zap, Download, History } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fetchRecommendations, type RecommendationItem } from '../services/api';
 import { jsPDF } from 'jspdf';
 
@@ -42,6 +43,27 @@ export default function Prediction() {
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrorDetail[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
+
+  const fetchHistory = async () => {
+    try {
+      const res = await fetch('/api/history', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        const formatted = data.map((item: any) => ({
+          ...item,
+          date: new Date(item.created_at).toLocaleDateString('fr-FR'),
+        })).reverse();
+        setHistory(formatted);
+      }
+    } catch (err) {
+      console.error("Erreur historique:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -66,6 +88,7 @@ export default function Prediction() {
           // If auth is enabled, you might need to add Authorization header here
           // 'Authorization': `Bearer ${token}`
         },
+        credentials: 'include',
         body: JSON.stringify(formData),
       });
 
@@ -84,6 +107,7 @@ export default function Prediction() {
       }
 
       setScore(data.score);
+      fetchHistory();
       // Fetch top recommendations to show inline with the score
       try {
         const recs = await fetchRecommendations({ score: data.score, focus_area: formData.primary_industry });
@@ -469,6 +493,40 @@ export default function Prediction() {
           </div>
         </div>
 
+      </div>
+
+      {/* Historique des scores (Nouveau bloc) */}
+      <div className="mt-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+        <h2 className="text-xl font-bold flex items-center gap-2 mb-6 text-gray-800">
+          <History className="text-emerald-500 w-6 h-6" />
+          Évolution de mon Score ESG
+        </h2>
+        <div className="h-80">
+          {history.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={history}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="date" tick={{ fill: '#888' }} />
+                <YAxis domain={[0, 100]} tick={{ fill: '#888' }} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="score" 
+                  stroke="#10b981" 
+                  strokeWidth={4}
+                  dot={{ r: 6, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
+                  activeDot={{ r: 8 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-400 font-medium bg-gray-50 rounded-xl">
+              Aucune prédiction sauvegardée pour le moment. Calculez votre premier score !
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
