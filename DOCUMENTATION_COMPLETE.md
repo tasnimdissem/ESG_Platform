@@ -1269,42 +1269,11 @@ class PasswordResetToken(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 ```
 
-### 7.4 Seeding de Démo Users
+### 7.4 Users de test
 
-**Auto-seed au démarrage (local SQLite):**
-```python
-# backend/app.py
+**Local development:** crée un compte de test via le formulaire d’inscription, puis utilise-le pour valider les parcours d’authentification.
 
-def _seed_local_demo_user():
-    """Create demo account if SQLite"""
-    demo_email = os.getenv('DEV_DEMO_EMAIL', 'demo@esg.local')
-    demo_password = os.getenv('DEV_DEMO_PASSWORD', 'demo1234')
-    
-    user = User.query.filter_by(email=demo_email).first()
-    if not user:
-        user = User(email=demo_email, name="Demo User")
-        user.set_password(demo_password)
-        db.session.add(user)
-        db.session.commit()
-```
-
-**Manual seed (Production):**
-```python
-@app.cli.command()
-def seed_users():
-    """CLI command to seed users"""
-    users = [
-        ("demo@esg.local", "demo1234", "Demo User"),
-        ("analyst@company.com", "SecurePass123!", "ESG Analyst"),
-    ]
-    for email, password, name in users:
-        if User.query.filter_by(email=email).first():
-            continue
-        u = User(email=email, name=name)
-        u.set_password(password)
-        db.session.add(u)
-    db.session.commit()
-
+**Production:** provisionne les comptes via votre process d’administration ou de migration, sans jamais embarquer d’identifiants en dur dans le code ou la documentation.
 # Run with: flask seed-users
 ```
 
@@ -1761,9 +1730,7 @@ server: {
 
 Cause: Mauvais email/password
 ```bash
-# Fix: Utilise credentials de démo
-# Email: demo@esg.local
-# Password: demo1234
+# Fix: Vérifie les identifiants du compte de test que tu as créé localement
 ```
 
 **Erreur: `422 UNPROCESSABLE ENTITY` sur /me**
@@ -1816,7 +1783,7 @@ npm run dev:full
 
 # Backend auto-crée:
 # 1. Tables (via SQLAlchemy db.create_all())
-# 2. Demo user (demo@esg.local / demo1234)
+# 2. Comptes de test selon votre workflow local
 
 # Vérifie DB:
 # sqlite3 esg_pfe.db "SELECT * FROM users;"
@@ -1879,10 +1846,6 @@ SMTP_USE_TLS=true
 EMAIL_FROM=no-reply@esg-platform.local
 EMAIL_RESET_LINK_BASE_URL=http://localhost:5173/reset-password
 
-# ===== DEMO ACCOUNT (Local) =====
-DEV_DEMO_EMAIL=demo@esg.local
-DEV_DEMO_PASSWORD=demo1234
-DEV_DEMO_NAME=Demo User
 ```
 
 ---
@@ -1900,7 +1863,7 @@ npm run preview         # Preview production build
 pip install -r backend/requirements.txt  # Install deps
 flask db init           # Init migrations (if using alembic)
 flask db upgrade        # Apply migrations
-flask seed-users        # Seed demo users
+flask seed-users        # Seed test users
 
 # Development (Combined)
 npm run dev:full        # Start Vite + Backend + RAG
