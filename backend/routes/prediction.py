@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 prediction_bp = Blueprint('prediction', __name__)
 
 @prediction_bp.post('/predict')
-@limiter.limit("30 per hour")  # Prevent ML model abuse - 30 predictions per hour per IP
+@limiter.limit("20 per minute")  # FIXED: Rate limiting a 20 requetes / minute par IP
 def predict():
     """
     Endpoint: POST /predict
