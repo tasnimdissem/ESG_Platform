@@ -1,9 +1,9 @@
 import { NavLink } from 'react-router';
-import { LayoutDashboard, LineChart, MessageSquare, Lightbulb, LogOut, Leaf, Calculator } from 'lucide-react';
+import { LayoutDashboard, LineChart, MessageSquare, Lightbulb, LogOut, Leaf, Calculator, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export function Sidebar() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   const navItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -12,6 +12,10 @@ export function Sidebar() {
     { path: '/chatbot', icon: MessageSquare, label: 'Chatbot IA' },
     { path: '/recommendations', icon: Lightbulb, label: 'Recommandations' },
   ];
+
+  if (user && user.role === 'admin') {
+    navItems.push({ path: '/admin', icon: ShieldAlert, label: 'Administration' });
+  }
 
   return (
     <div className="w-64 bg-gradient-to-b from-emerald-900 to-emerald-950 text-white flex flex-col h-screen sticky top-0">
