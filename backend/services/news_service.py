@@ -22,7 +22,7 @@ def fetch_esg_news(limit: int = 8) -> list[dict[str, Any]]:
         return []
 
     params = {
-        "q": "ESG OR sustainability OR climate",
+"q": "\"ESG score\" OR \"ESG rating\" OR \"sustainable finance\" OR \"green bond\" OR \"carbon offset\"",
         "language": "en",
         "sortBy": "publishedAt",
         "pageSize": limit,
