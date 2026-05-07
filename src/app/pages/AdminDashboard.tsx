@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ShieldAlert, Trash2, ShieldCheck, UserCheck, Users, Search } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 type User = {
   id: number;
