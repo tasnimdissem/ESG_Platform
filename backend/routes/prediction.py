@@ -2,9 +2,11 @@ from flask import Blueprint, request, jsonify
 import logging
 from pydantic import ValidationError
 
-from backend.extensions import limiter
+from backend.extensions import limiter, db
 from backend.services.ml_service import predict_esg
 from backend.schemas import PredictRequest
+from backend.models.prediction import PredictionHistory
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +14,8 @@ logger = logging.getLogger(__name__)
 prediction_bp = Blueprint('prediction', __name__)
 
 @prediction_bp.post('/predict')
-@limiter.limit("30 per hour")  # Prevent ML model abuse - 30 predictions per hour per IP
+@limiter.limit("20 per minute")  # FIXED: Rate limiting a 20 requetes / minute par IP
+@jwt_required(optional=True)
 def predict():
     """
     Endpoint: POST /predict
@@ -40,6 +43,23 @@ def predict():
         score = predict_esg(validated_data.dict())
         
         logger.info(f"Prediction successful: score={score}")
+        
+        # --- Sauvegarde dans l'historique ---
+        user_id = get_jwt_identity() # Retourne None si pas authentifié
+        try:
+            history_entry = PredictionHistory(
+                user_id=user_id,
+                primary_industry=validated_data.primary_industry,
+                score=score,
+                features_data=validated_data.dict()
+            )
+            db.session.add(history_entry)
+            db.session.commit()
+            logger.info("Historique de prédiction sauvegardé avec succès.")
+        except Exception as e:
+            logger.error(f"Erreur lors de la sauvegarde de l'historique: {e}")
+            db.session.rollback()
+            
         # 4. Return the result in the requested format
         return jsonify({
             "score": score
@@ -57,3 +77,14 @@ def predict():
         logger.error(f"Unexpected error in predict: {str(e)}", exc_info=True)
         # Catch-all for any other unexpected errors
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+
+@prediction_bp.get('/history')
+@jwt_required()
+def get_history():
+    """
+    Endpoint: GET /history
+    Returns the prediction history for the authenticated user.
+    """
+    user_id = get_jwt_identity()
+    history = PredictionHistory.query.filter_by(user_id=user_id).order_by(PredictionHistory.created_at.desc()).all()
+    return jsonify([h.to_dict() for h in history]), 200

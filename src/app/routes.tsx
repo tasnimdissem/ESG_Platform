@@ -9,6 +9,7 @@ import Analytics from './pages/Analytics';
 import ChatbotRag from './pages/ChatbotRag';
 import RecommendationsRag from './pages/RecommendationsRag';
 import Prediction from './pages/Prediction';
+import AdminDashboard from './pages/AdminDashboard';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -69,6 +70,10 @@ export const router = createBrowserRouter([
       {
         path: 'prediction',
         element: <Prediction />,
+      },
+      {
+        path: 'admin',
+        element: <AdminDashboard />,
       },
     ],
   },

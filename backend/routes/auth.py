@@ -29,7 +29,7 @@ def _get_json_payload() -> tuple[dict | None, tuple[object, int] | None]:
 
 
 @auth_bp.post('/register')
-@limiter.limit("5 per hour")  # Prevent registration spam
+@limiter.limit("3 per minute")  # FIXED: Prevent registration spam (3 attempts per minute per IP)
 def register() -> object:
     payload, error = _get_json_payload()
     if error is not None:
@@ -73,7 +73,7 @@ def register() -> object:
 
 
 @auth_bp.post('/login')
-@limiter.limit("5 per hour")  # Prevent brute-force attacks (5 attempts per hour per IP)
+@limiter.limit("5 per minute")  # FIXED: Prevent brute-force attacks (5 attempts per minute per IP)
 def login() -> object:
     try:
         # Ensure tables exist (in case DB became available after startup)
@@ -191,7 +191,9 @@ def forgot_password() -> object:
     email_sent = send_password_reset_email(user.email, raw_token)
 
     # SECURITY: Only return reset_token in development mode (never expose secrets in production)
-    return_token = raw_token if (not email_sent and current_app.config.get('RETURN_RESET_TOKEN_IN_RESPONSE', False)) else None
+    # FIXED: Token en clair uniquement si FLASK_ENV=development
+    is_dev = os.getenv('FLASK_ENV', 'development') == 'development'
+    return_token = raw_token if (not email_sent and is_dev) else None
 
     return jsonify(
         {

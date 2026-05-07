@@ -19,7 +19,10 @@ class User(db.Model):
         self.password = bcrypt.generate_password_hash(raw).decode('utf-8')
 
     def check_password(self, raw: str) -> bool:
-        return bcrypt.check_password_hash(self.password, raw)
+        try:
+            return bcrypt.check_password_hash(self.password, raw)
+        except ValueError:
+            return False
 
     def to_dict(self) -> dict:
         return {

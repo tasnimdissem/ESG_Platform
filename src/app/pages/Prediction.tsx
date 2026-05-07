@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
-import { Calculator, Activity, Leaf, Users, Building, ShieldCheck, Zap, Download } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Calculator, Activity, Leaf, Users, Building, ShieldCheck, Zap, Download, History } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fetchRecommendations, type RecommendationItem } from '../services/api';
-import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 type ValidationErrorDetail = {
@@ -43,7 +43,27 @@ export default function Prediction() {
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrorDetail[]>([]);
-  const resultPanelRef = useRef<HTMLDivElement>(null);
+  const [history, setHistory] = useState<any[]>([]);
+
+  const fetchHistory = async () => {
+    try {
+      const res = await fetch('/api/history', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        const formatted = data.map((item: any) => ({
+          ...item,
+          date: new Date(item.created_at).toLocaleDateString('fr-FR'),
+        })).reverse();
+        setHistory(formatted);
+      }
+    } catch (err) {
+      console.error("Erreur historique:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -68,6 +88,7 @@ export default function Prediction() {
           // If auth is enabled, you might need to add Authorization header here
           // 'Authorization': `Bearer ${token}`
         },
+        credentials: 'include',
         body: JSON.stringify(formData),
       });
 
@@ -86,6 +107,7 @@ export default function Prediction() {
       }
 
       setScore(data.score);
+      fetchHistory();
       // Fetch top recommendations to show inline with the score
       try {
         const recs = await fetchRecommendations({ score: data.score, focus_area: formData.primary_industry });
@@ -113,34 +135,125 @@ export default function Prediction() {
   };
 
   const handleExportPDF = async () => {
-    if (!resultPanelRef.current) return;
-    
+    if (score === null) return;
     setIsExporting(true);
+
     try {
-      const canvas = await html2canvas(resultPanelRef.current, {
-        scale: 2, // High quality
-        backgroundColor: '#ffffff',
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 20;
+      let y = 20;
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-      pdf.text('Rapport de Simulation ESG', 14, 15);
+      // ── En-tête ──────────────────────────────────────────────────────────
+      pdf.setFillColor(16, 185, 129); // emerald-500
+      pdf.rect(0, 0, pageWidth, 35, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Rapport de Simulation ESG', margin, 18);
       pdf.setFontSize(10);
-      pdf.setTextColor(100);
-      pdf.text(`Secteur: ${formData.primary_industry} | Date: ${new Date().toLocaleDateString()}`, 14, 22);
-      
-      pdf.addImage(imgData, 'PNG', 15, 30, pdfWidth - 30, pdfHeight - 30);
-      pdf.save('Rapport_Simulation_ESG.pdf');
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(
+        `Secteur: ${formData.primary_industry}   |   Date: ${new Date().toLocaleDateString('fr-FR')}`,
+        margin, 28
+      );
+
+      y = 50;
+
+      // ── Score ESG ─────────────────────────────────────────────────────────
+      pdf.setTextColor(30, 30, 30);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Score ESG Global', margin, y);
+      y += 8;
+
+      const scoreColor: [number, number, number] =
+        score >= 80 ? [16, 185, 129] : score >= 50 ? [245, 158, 11] : [239, 68, 68];
+      pdf.setFillColor(...scoreColor);
+      pdf.roundedRect(margin, y, pageWidth - margin * 2, 20, 4, 4, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(
+        `${score.toFixed(1)} / 100 — ${score >= 80 ? 'Excellente Performance' : score >= 50 ? 'Performance Moyenne' : 'Risque Élevé'}`,
+        pageWidth / 2, y + 13,
+        { align: 'center' }
+      );
+      y += 30;
+
+      // ── Données du formulaire ─────────────────────────────────────────────
+      pdf.setTextColor(30, 30, 30);
+      pdf.setFontSize(13);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Métriques saisies', margin, y);
+      y += 8;
+
+      const fields = Object.entries(formData) as [string, number | string][];
+      pdf.setFontSize(9);
+
+      fields.forEach(([key, value], i) => {
+        // Deux colonnes
+        const col = i % 2;
+        const colX = margin + col * ((pageWidth - margin * 2) / 2);
+
+        if (col === 0) {
+          // Fond alterné
+          if (Math.floor(i / 2) % 2 === 0) {
+            pdf.setFillColor(245, 250, 247);
+            pdf.rect(margin, y - 4, pageWidth - margin * 2, 7, 'F');
+          }
+        }
+
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(80, 80, 80);
+        pdf.text(key.replace(/_/g, ' '), colX, y);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(30, 30, 30);
+        pdf.text(String(value), colX + 60, y);
+
+        if (col === 1) y += 7;
+        if (y > 270) { pdf.addPage(); y = 20; }
+      });
+
+      y += 10;
+
+      // ── Recommandations inline ────────────────────────────────────────────
+      if (suggestions.length > 0) {
+        if (y > 220) { pdf.addPage(); y = 20; }
+        pdf.setFontSize(13);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(30, 30, 30);
+        pdf.text('Recommandations', margin, y);
+        y += 8;
+
+        suggestions.forEach((rec, i) => {
+          if (y > 260) { pdf.addPage(); y = 20; }
+          pdf.setFillColor(240, 253, 244);
+          pdf.roundedRect(margin, y - 4, pageWidth - margin * 2, 16, 3, 3, 'F');
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(16, 185, 129);
+          pdf.text(`${i + 1}. ${rec.title}`, margin + 3, y + 2);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(80, 80, 80);
+          pdf.text(`Impact: +${rec.impact} pts  |  Effort: ${rec.effort}`, margin + 3, y + 8);
+          y += 20;
+        });
+      }
+
+      // ── Pied de page ──────────────────────────────────────────────────────
+      pdf.setFontSize(8);
+      pdf.setTextColor(160, 160, 160);
+      pdf.text(
+        `Généré par ESG Platform — Modèle CatBoost v1.2 — ${new Date().toLocaleString('fr-FR')}`,
+        pageWidth / 2,
+        pdf.internal.pageSize.getHeight() - 10,
+        { align: 'center' }
+      );
+
+      pdf.save('Rapport_ESG.pdf');
     } catch (err) {
-      console.error('Erreur lors de la génération du PDF', err);
+      console.error('Erreur PDF', err);
     } finally {
       setIsExporting(false);
     }
@@ -295,7 +408,7 @@ export default function Prediction() {
 
         {/* Résultat (Panneau latéral collant) */}
         <div className="lg:col-span-1">
-          <div ref={resultPanelRef} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 sticky top-24 overflow-hidden relative group">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 sticky top-24 overflow-hidden relative group">
             {/* Effet décoratif en fond */}
             <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-gradient-to-br from-emerald-50 to-teal-50 opacity-50 group-hover:scale-150 transition-transform duration-700"></div>
 
@@ -380,6 +493,40 @@ export default function Prediction() {
           </div>
         </div>
 
+      </div>
+
+      {/* Historique des scores (Nouveau bloc) */}
+      <div className="mt-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+        <h2 className="text-xl font-bold flex items-center gap-2 mb-6 text-gray-800">
+          <History className="text-emerald-500 w-6 h-6" />
+          Évolution de mon Score ESG
+        </h2>
+        <div className="h-80">
+          {history.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={history}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="date" tick={{ fill: '#888' }} />
+                <YAxis domain={[0, 100]} tick={{ fill: '#888' }} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="score" 
+                  stroke="#10b981" 
+                  strokeWidth={4}
+                  dot={{ r: 6, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
+                  activeDot={{ r: 8 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-400 font-medium bg-gray-50 rounded-xl">
+              Aucune prédiction sauvegardée pour le moment. Calculez votre premier score !
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

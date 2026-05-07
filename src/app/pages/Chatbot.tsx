@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Send, Bot, User, Sparkles, Lightbulb } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Lightbulb, AlertTriangle } from 'lucide-react';
 import { fetchChatResponse } from '../services/api';
 
 type Message = {
@@ -8,6 +8,7 @@ type Message = {
   sender: 'user' | 'bot';
   timestamp: Date;
   sources?: string[];
+  isFallback?: boolean;
 };
 
 const suggestedQuestions = [
@@ -66,6 +67,7 @@ export default function Chatbot() {
           sender: 'bot',
           timestamp: new Date(),
           sources: response.sources,
+          isFallback: response.isFallback, // FIXED: Sauvegarder l'état fallback
         },
       ]);
     } catch {
@@ -134,6 +136,12 @@ export default function Chatbot() {
                         : 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white'
                     }`}
                   >
+                    {message.sender === 'bot' && message.isFallback && (
+                      <div className="mb-2 flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-100 px-2 py-1 rounded-md w-max border border-amber-200">
+                        <AlertTriangle className="w-3 h-3" />
+                        Mode hors-ligne
+                      </div>
+                    )}
                     <p className="text-sm whitespace-pre-line leading-relaxed">{message.text}</p>
                     {message.sources && message.sources.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">

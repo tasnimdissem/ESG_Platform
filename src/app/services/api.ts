@@ -11,6 +11,7 @@ export type ChatResponse = {
   answer: string;
   sources: string[];
   confidence: number;
+  isFallback?: boolean;
 };
 
 export type RecommendationItem = {
@@ -90,6 +91,7 @@ type IntegrationResponse = {
     service?: string;
     version?: string;
     timestamp?: string;
+    source?: string;
   };
 };
 
@@ -230,6 +232,7 @@ export async function fetchChatResponse(message: string): Promise<ChatResponse> 
     answer: data.response?.answer ?? '',
     sources: normalizeSourceLabels(data.response?.sources),
     confidence: data.response?.sources?.length ? 0.9 : 0,
+    isFallback: data.meta?.source === 'fallback', // FIXED: Mapper la source du meta
   };
 }
 

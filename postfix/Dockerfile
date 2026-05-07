@@ -5,7 +5,7 @@ RUN apk add --no-cache \
     ca-certificates \
     coreutils \
     postfix \
-    postfix-sasl \
+    cyrus-sasl \
     rsyslog \
     tzdata \
     busybox-extras

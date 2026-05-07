@@ -145,6 +145,7 @@ def _build_local_integration_response(normalized_request: dict[str, Any]) -> dic
         'meta': {
             'service': 'rag-esg-local',
             'version': 'fallback',
+            'source': 'fallback',  # FIXED: Indiquer clairement que c'est une reponse de secours
             'timestamp': datetime.now(timezone.utc).isoformat(),
         },
     }
