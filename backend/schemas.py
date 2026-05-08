@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, mo
 class PredictRequest(BaseModel):
     """Validation schema for ESG prediction input."""
 
-    company_name: str = Field(..., description="Name of the company")
     primary_industry: Optional[str] = Field(default="Technology", description="Primary industry classification")
     log_market_cap: Optional[float] = Field(default=None, ge=0, le=100, description="Log market cap")
     log_employees: Optional[float] = Field(default=None, ge=0, le=100, description="Log employees")
@@ -37,7 +36,6 @@ class PredictRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "company_name": "Tech Corp",
                 "primary_industry": "Technology",
                 "log_market_cap": 20.5,
                 "log_employees": 8.1,
