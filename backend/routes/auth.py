@@ -47,7 +47,8 @@ def register() -> object:
     name = validated_data.name.strip()
     email = validated_data.email.strip().lower()
     password = validated_data.password
-    role = validated_data.role or 'user'
+    # Security: never trust client-provided role during self-registration.
+    role = 'user'
 
     if User.query.filter_by(email=email).first() is not None:
         return jsonify({'error': 'Email already exists'}), 409

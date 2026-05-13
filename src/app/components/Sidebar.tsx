@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router';
-import { LayoutDashboard, LineChart, MessageSquare, Lightbulb, LogOut, Leaf, Calculator, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, LineChart, MessageSquare, Lightbulb, LogOut, Leaf, Calculator, ShieldAlert, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export function Sidebar() {
@@ -8,6 +8,7 @@ export function Sidebar() {
   const navItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/analytics', icon: LineChart, label: 'Analytics' },
+    { path: '/companies', icon: Users, label: 'Mes entreprises' },
     { path: '/prediction', icon: Calculator, label: 'Simulateur ESG' },
     { path: '/chatbot', icon: MessageSquare, label: 'Chatbot IA' },
     { path: '/recommendations', icon: Lightbulb, label: 'Recommandations' },

@@ -81,3 +81,8 @@ def news() -> object:
             'count': len(items),
         }
     )
+
+
+@api_bp.route('/powerbi-url', methods=['GET'])
+def powerbi_url() -> object:
+    return jsonify({'url': current_app.config.get('POWER_BI_IFRAME_URL', '')})

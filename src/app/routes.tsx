@@ -9,6 +9,8 @@ import Analytics from './pages/Analytics';
 import ChatbotRag from './pages/ChatbotRag';
 import RecommendationsRag from './pages/RecommendationsRag';
 import Prediction from './pages/Prediction';
+import Companies from './pages/Companies';
+import CompanyView from './pages/CompanyView';
 import AdminDashboard from './pages/AdminDashboard';
 import Layout from './components/Layout';
 
@@ -70,6 +72,14 @@ export const router = createBrowserRouter([
       {
         path: 'prediction',
         element: <Prediction />,
+      },
+      {
+        path: 'companies',
+        element: <Companies />,
+      },
+      {
+        path: 'companies/:id',
+        element: <CompanyView />,
       },
       {
         path: 'admin',

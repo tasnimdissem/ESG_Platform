@@ -1,6 +1,26 @@
+import { useEffect, useState } from 'react';
 import { LayoutDashboard } from 'lucide-react';
 
 export default function Dashboard() {
+  const [powerBiUrl, setPowerBiUrl] = useState('');
+
+  useEffect(() => {
+    const loadPowerBiUrl = async () => {
+      try {
+        const res = await fetch('/api/powerbi-url', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = (await res.json()) as { url?: string };
+        if (data.url) {
+          setPowerBiUrl(data.url);
+        }
+      } catch {
+        // Keep empty src if API is unavailable.
+      }
+    };
+
+    void loadPowerBiUrl();
+  }, []);
+
   return (
     <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
       {/* Header */}
@@ -21,14 +41,19 @@ export default function Dashboard() {
           <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-800 rounded-full font-medium">Connecté en temps réel</span>
         </div>
         
-        {/* Replace the src with your actual PowerBI publish-to-web or embedded URL */}
-        <iframe
-          title="PowerBI ESG Dashboard"
-          className="w-full h-full border-none"
-          src="https://app.powerbi.com/reportEmbed?reportId=votre_id_de_rapport&autoAuth=true&ctid=votre_tenant_id"
-          allowFullScreen={true}
-          style={{ minHeight: '600px' }}
-        ></iframe>
+        {powerBiUrl ? (
+          <iframe
+            title="PowerBI ESG Dashboard"
+            className="w-full h-full border-none"
+            src={powerBiUrl}
+            allowFullScreen={true}
+            style={{ minHeight: '600px' }}
+          ></iframe>
+        ) : (
+          <div className="flex h-full min-h-[600px] items-center justify-center text-sm text-gray-500">
+            URL Power BI non configuree.
+          </div>
+        )}
       </div>
     </div>
   );

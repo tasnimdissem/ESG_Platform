@@ -3,47 +3,56 @@ import { Calculator, Activity, Leaf, Users, Building, ShieldCheck, Zap, Download
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fetchRecommendations, type RecommendationItem } from '../services/api';
 import { jsPDF } from 'jspdf';
+import { DEFAULT_INDICATORS, ESGIndicators } from '../utils/esgIndicators';
 
 type ValidationErrorDetail = {
   field: string;
   message: string;
 };
 
-const initialFormState = {
-  primary_industry: 'Technology',
-  log_market_cap: 20.5,
-  log_employees: 8.1,
-  log_revenue_wins: 15.2,
-  log_scope_1: 4.5,
-  log_scope_2: 3.2,
-  log_scope_3: 5.1,
-  log_energy_consumption: 6.8,
-  log_waste_production: 3.4,
-  log_water_consumption: 7.2,
-  log_hours_of_training_wins: 5.0,
-  log_ceo_compensation: 14.5,
-  independent_board_members_percentage: 65.0,
-  log_legal_costs_paid_for_controversies: 0.0,
-  intensity_scope_1: 0.5,
-  intensity_scope_2: 0.3,
-  intensity_scope_3: 1.2,
-  intensity_energy: 0.8,
-  intensity_waste: 0.1,
-  intensity_water: 0.9,
-  intensity_training: 0.4,
-  intensity_productivity: 1.5,
-  revenue_negative_flag: 0
-};
-
 export default function Prediction() {
-  const [formData, setFormData] = useState(initialFormState);
-  const [score, setScore] = useState<number | null>(null);
+  const [formData, setFormData] = useState<ESGIndicators>(() => {
+    try {
+      const raw = localStorage.getItem('esg_simulator_form');
+      return raw ? JSON.parse(raw) : DEFAULT_INDICATORS;
+    } catch {
+      return DEFAULT_INDICATORS;
+    }
+  });
+  const [score, setScore] = useState<number | null>(() => {
+    try {
+      const s = localStorage.getItem('esg_simulator_score');
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
+  });
   const [suggestions, setSuggestions] = useState<RecommendationItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrorDetail[]>([]);
   const [history, setHistory] = useState<any[]>([]);
+  const [showSaveCompany, setShowSaveCompany] = useState(false);
+  const [companyName, setCompanyName] = useState('');
+  const [isSavingCompany, setIsSavingCompany] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('esg_simulator_form', JSON.stringify(formData));
+    } catch {}
+  }, [formData]);
+
+  useEffect(() => {
+    try {
+      if (score === null) {
+        localStorage.removeItem('esg_simulator_score');
+      } else {
+        localStorage.setItem('esg_simulator_score', JSON.stringify(score));
+      }
+    } catch {}
+  }, [score]);
+
 
   const fetchHistory = async () => {
     try {
@@ -134,9 +143,42 @@ export default function Prediction() {
     return 'from-red-400 to-red-600';
   };
 
+  const handleSaveToCompany = async () => {
+    if (!companyName.trim() || score === null) return;
+    setIsSavingCompany(true);
+
+    try {
+      const COMPANIES_KEY = 'esg_companies_v1';
+      const companies = JSON.parse(localStorage.getItem(COMPANIES_KEY) || '[]');
+      
+      const id = (crypto && (crypto as any).randomUUID ? (crypto as any).randomUUID() : `id-${Date.now()}`);
+      const newCompany = {
+        entreprise_id: id,
+        nom: companyName,
+        historique: [
+          {
+            date: new Date().toISOString().split('T')[0],
+            indicateurs: formData,
+            scores: { E: score, S: score, G: score, global: score },
+          },
+        ],
+      };
+
+      companies.unshift(newCompany);
+      localStorage.setItem(COMPANIES_KEY, JSON.stringify(companies));
+      
+      setShowSaveCompany(false);
+      setCompanyName('');
+      alert('Entreprise enregistrée avec succès !');
+    } catch (err) {
+      console.error(err);
+      alert('Erreur lors de l\'enregistrement');
+    } finally {
+      setIsSavingCompany(false);
+    }
+  };
+
   const handleExportPDF = async () => {
-    if (score === null) return;
-    setIsExporting(true);
 
     try {
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -167,15 +209,16 @@ export default function Prediction() {
       pdf.text('Score ESG Global', margin, y);
       y += 8;
 
+      const safeScore = score ?? 0;
       const scoreColor: [number, number, number] =
-        score >= 80 ? [16, 185, 129] : score >= 50 ? [245, 158, 11] : [239, 68, 68];
+        safeScore >= 80 ? [16, 185, 129] : safeScore >= 50 ? [245, 158, 11] : [239, 68, 68];
       pdf.setFillColor(...scoreColor);
       pdf.roundedRect(margin, y, pageWidth - margin * 2, 20, 4, 4, 'F');
       pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(16);
       pdf.setFont('helvetica', 'bold');
       pdf.text(
-        `${score.toFixed(1)} / 100 — ${score >= 80 ? 'Excellente Performance' : score >= 50 ? 'Performance Moyenne' : 'Risque Élevé'}`,
+        `${safeScore.toFixed(1)} / 100 — ${safeScore >= 80 ? 'Excellente Performance' : safeScore >= 50 ? 'Performance Moyenne' : 'Risque Élevé'}`,
         pageWidth / 2, y + 13,
         { align: 'center' }
       );
@@ -454,7 +497,46 @@ export default function Prediction() {
                     {isExporting ? 'Génération...' : 'Exporter en PDF'}
                   </button>
 
-                  {/* Inline recommendations */}
+                  <button
+                    onClick={() => setShowSaveCompany(true)}
+                    type="button"
+                    className="mt-3 w-full py-3 px-4 rounded-xl border-2 border-blue-500 text-blue-600 font-bold hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Building className="w-5 h-5" />
+                    Enregistrer pour une entreprise
+                  </button>
+
+                  {showSaveCompany && (
+                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nom de l'entreprise</label>
+                      <input
+                        type="text"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        placeholder="Ex: TechCorp SA"
+                        className="w-full px-3 py-2 border border-blue-300 rounded-md mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleSaveToCompany}
+                          disabled={isSavingCompany || !companyName.trim()}
+                          className="flex-1 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {isSavingCompany ? 'Enregistrement...' : 'Enregistrer'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowSaveCompany(false);
+                            setCompanyName('');
+                          }}
+                          className="flex-1 py-2 bg-gray-300 text-gray-700 rounded-md font-semibold hover:bg-gray-400"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {suggestions.length > 0 && (
                     <div className="mt-6">
                       <h4 className="font-semibold mb-3">Recommandations suggérées</h4>
