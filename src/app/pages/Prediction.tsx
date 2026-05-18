@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Calculator, Activity, Leaf, Users, Building, ShieldCheck, Zap, Download, History } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { fetchRecommendations, type RecommendationItem } from '../services/api';
+import { createCompany, fetchRecommendations, type RecommendationItem } from '../services/api';
 import { jsPDF } from 'jspdf';
 import { DEFAULT_INDICATORS, ESGIndicators } from '../utils/esgIndicators';
 
@@ -148,24 +148,11 @@ export default function Prediction() {
     setIsSavingCompany(true);
 
     try {
-      const COMPANIES_KEY = 'esg_companies_v1';
-      const companies = JSON.parse(localStorage.getItem(COMPANIES_KEY) || '[]');
-      
-      const id = (crypto && (crypto as any).randomUUID ? (crypto as any).randomUUID() : `id-${Date.now()}`);
-      const newCompany = {
-        entreprise_id: id,
-        nom: companyName,
-        historique: [
-          {
-            date: new Date().toISOString().split('T')[0],
-            indicateurs: formData,
-            scores: { E: score, S: score, G: score, global: score },
-          },
-        ],
-      };
-
-      companies.unshift(newCompany);
-      localStorage.setItem(COMPANIES_KEY, JSON.stringify(companies));
+      await createCompany({
+        name: companyName,
+        indicators: formData,
+        score,
+      });
       
       setShowSaveCompany(false);
       setCompanyName('');

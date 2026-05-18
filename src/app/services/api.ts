@@ -95,6 +95,43 @@ type IntegrationResponse = {
   };
 };
 
+export type CompanyHistoryItem = {
+  date: string;
+  indicateurs: Record<string, unknown>;
+  scores: {
+    E: number | null;
+    S: number | null;
+    G: number | null;
+    global: number | null;
+  };
+};
+
+export type CompanyRecord = {
+  entreprise_id: string;
+  nom: string;
+  historique: CompanyHistoryItem[];
+  created_by_user_id?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type CompanyCreatePayload = {
+  name: string;
+  indicators: Record<string, unknown>;
+  score: number;
+};
+
+export type CompanyUpdatePayload = {
+  name?: string;
+  sector?: string | null;
+  country?: string | null;
+};
+
+export type CompanyHistoryPayload = {
+  indicators: Record<string, unknown>;
+  score: number;
+};
+
 type RagQueryResponse = {
   input?: {
     question?: string;
@@ -126,6 +163,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
       'Content-Type': 'application/json',
       ...(init?.headers ?? {}),
     },
+    credentials: 'include',
     ...init,
   });
 
@@ -277,4 +315,39 @@ export async function fetchPrediction(payload: PredictionPayload) {
 export async function fetchNewsItems(limit = 8): Promise<NewsItem[]> {
   const data = await fetchJson<{ items?: NewsItem[] }>(`/api/news?limit=${limit}`);
   return Array.isArray(data.items) ? data.items : [];
+}
+
+export async function fetchCompanies(): Promise<CompanyRecord[]> {
+  return fetchJson<CompanyRecord[]>('/api/companies');
+}
+
+export async function fetchCompany(companyId: string): Promise<CompanyRecord> {
+  return fetchJson<CompanyRecord>(`/api/companies/${companyId}`);
+}
+
+export async function createCompany(payload: CompanyCreatePayload): Promise<CompanyRecord> {
+  return fetchJson<CompanyRecord>('/api/companies', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateCompany(companyId: string, payload: CompanyUpdatePayload): Promise<CompanyRecord> {
+  return fetchJson<CompanyRecord>(`/api/companies/${companyId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteCompany(companyId: string): Promise<void> {
+  await fetchJson<{ message: string }>(`/api/companies/${companyId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function addCompanyHistory(companyId: string, payload: CompanyHistoryPayload): Promise<CompanyRecord> {
+  return fetchJson<CompanyRecord>(`/api/companies/${companyId}/history`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }

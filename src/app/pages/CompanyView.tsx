@@ -2,36 +2,36 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ESGIndicatorForm } from '../components/ESGIndicatorForm';
+import { addCompanyHistory, fetchCompany, type CompanyRecord } from '../services/api';
 import { DEFAULT_INDICATORS, ESGIndicators } from '../utils/esgIndicators';
-
-const STORAGE_KEY = 'esg_companies_v1';
-
-function loadCompanies() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveCompanies(list: any[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-}
 
 export default function CompanyView() {
   const { id } = useParams();
-  const [company, setCompany] = useState<any>(null);
-  const [companies, setCompanies] = useState<any[]>([]);
+  const [company, setCompany] = useState<CompanyRecord | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [indicators, setIndicators] = useState<ESGIndicators>(DEFAULT_INDICATORS);
   const [showForm, setShowForm] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    const list = loadCompanies();
-    setCompanies(list);
-    const found = list.find((c: any) => c.entreprise_id === id);
-    setCompany(found ?? null);
+    const load = async () => {
+      if (!id) {
+        setCompany(null);
+        return;
+      }
+
+      setLoadError(null);
+      try {
+        const found = await fetchCompany(id);
+        setCompany(found);
+      } catch (err) {
+        console.error('Erreur chargement entreprise', err);
+        setCompany(null);
+        setLoadError('Entreprise introuvable ou inaccessible.');
+      }
+    };
+
+    void load();
   }, [id]);
 
   const handleIndicatorChange = (field: keyof ESGIndicators, value: string | number) => {
@@ -49,21 +49,22 @@ export default function CompanyView() {
       const res = await fetch('/api/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(indicators),
       });
       const data = await res.json();
       const score = data.score ?? null;
 
-      const entry = {
-        date: new Date().toISOString().split('T')[0],
-        indicateurs: indicators,
-        scores: { E: score, S: score, G: score, global: score },
-      };
+      if (score === null) {
+        throw new Error('Score invalide');
+      }
 
-      const updated = companies.map((c) => (c.entreprise_id === company.entreprise_id ? { ...c, historique: [entry, ...(c.historique || [])] } : c));
-      saveCompanies(updated);
-      setCompanies(updated);
-      setCompany(updated.find((c) => c.entreprise_id === company.entreprise_id));
+      const updatedCompany = await addCompanyHistory(company.entreprise_id, {
+        indicators,
+        score,
+      });
+
+      setCompany(updatedCompany);
       setShowForm(false);
       setIndicators(DEFAULT_INDICATORS);
     } catch (err) {
@@ -74,9 +75,9 @@ export default function CompanyView() {
     }
   };
 
-  if (!company) return <div className="p-6">Entreprise introuvable.</div>;
+  if (!company) return <div className="p-6">{loadError ?? 'Entreprise introuvable.'}</div>;
 
-  const chartData = (company.historique || []).map((h: any) => ({ date: h.date, score: h.scores?.global ?? null })).reverse();
+  const chartData = (company.historique || []).map((h) => ({ date: h.date, score: h.scores?.global ?? null })).reverse();
 
   return (
     <div className="p-6">
@@ -140,12 +141,12 @@ export default function CompanyView() {
           {(company.historique || []).length === 0 ? (
             <div className="text-center py-8 text-slate-500">Aucun historique disponible.</div>
           ) : (
-            (company.historique || []).map((h: any, idx: number) => (
+            (company.historique || []).map((h, idx: number) => (
               <div key={idx} className="p-4 border border-slate-200 rounded flex items-start justify-between hover:bg-slate-50">
                 <div>
                   <div className="font-semibold text-slate-900">{h.date}</div>
-                  <div className="text-sm text-slate-600 mt-1">Score global: <span className="font-semibold text-emerald-600">{h.scores?.global?.toFixed(1) ?? 'N/A'}</span></div>
-                  <div className="text-xs text-slate-500 mt-1">E: {h.scores?.E?.toFixed(1)}, S: {h.scores?.S?.toFixed(1)}, G: {h.scores?.G?.toFixed(1)}</div>
+                  <div className="text-sm text-slate-600 mt-1">Score global: <span className="font-semibold text-emerald-600">{typeof h.scores?.global === 'number' ? h.scores.global.toFixed(1) : 'N/A'}</span></div>
+                  <div className="text-xs text-slate-500 mt-1">E: {typeof h.scores?.E === 'number' ? h.scores.E.toFixed(1) : 'N/A'}, S: {typeof h.scores?.S === 'number' ? h.scores.S.toFixed(1) : 'N/A'}, G: {typeof h.scores?.G === 'number' ? h.scores.G.toFixed(1) : 'N/A'}</div>
                 </div>
               </div>
             ))
