@@ -21,10 +21,10 @@ export default function ChatbotRag() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: "Bonjour ! Je suis votre assistant IA specialise en ESG. Posez-moi une question sur vos KPI, vos recommandations ou la navigation du tableau de bord.",
+      text: "Bonjour ! Je suis votre assistant IA spécialisé en ESG. Posez-moi une question sur vos KPI, vos recommandations ou la navigation du tableau de bord.",
       sender: 'bot',
       timestamp: new Date(),
-      sources: ['ESG dashboard overview'],
+      sources: ['Aperçu du tableau de bord ESG'],
     },
   ]);
   const [inputText, setInputText] = useState('');
@@ -62,7 +62,7 @@ export default function ChatbotRag() {
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          text: response.answer || 'Aucune reponse retournee par le service RAG.',
+          text: response.answer || 'Aucune réponse renvoyée par le service RAG.',
           sender: 'bot',
           timestamp: new Date(),
           sources: response.sources,
@@ -75,7 +75,7 @@ export default function ChatbotRag() {
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          text: 'Service temporairement indisponible. Veuillez reessayer dans un instant.',
+          text: 'Service temporairement indisponible. Veuillez réessayer dans un instant.',
           sender: 'bot',
           timestamp: new Date(),
         },
@@ -96,8 +96,8 @@ export default function ChatbotRag() {
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="max-w-5xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Chatbot IA ESG</h1>
-          <p className="text-gray-600">Assistant alimente par le backend Flask local et son contrat RAG.</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">ESGénie</h1>
+          <p className="text-gray-600">Assistant alimenté par le backend Flask local et son contrat RAG.</p>
         </div>
 
         {errorMessage && (
@@ -218,7 +218,7 @@ export default function ChatbotRag() {
             <div className="bg-white rounded-xl p-6 border border-gray-200">
               <h3 className="font-bold mb-4 flex items-center gap-2">
                 <Lightbulb className="w-5 h-5 text-yellow-500" />
-                Questions Suggerees
+                Questions suggérées
               </h3>
               <div className="space-y-2">
                 {suggestedQuestions.map((question) => (
@@ -234,25 +234,25 @@ export default function ChatbotRag() {
             </div>
 
             <div className="bg-white rounded-xl p-6 border border-gray-200">
-              <h3 className="font-bold mb-4">Capacites de l'IA</h3>
+              <h3 className="font-bold mb-4">Capacités de l’IA</h3>
               <div className="space-y-3 text-sm">
                 <div className="flex items-start gap-2">
                   <div className="w-5 h-5 bg-emerald-100 rounded flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-emerald-600 text-xs">✓</span>
                   </div>
-                  <span className="text-gray-700">Analyse scores ESG en temps reel</span>
+                  <span className="text-gray-700">Analyse des scores ESG en temps réel</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="w-5 h-5 bg-emerald-100 rounded flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-emerald-600 text-xs">✓</span>
                   </div>
-                  <span className="text-gray-700">Reponses alimentees par le RAG local</span>
+                  <span className="text-gray-700">Réponses alimentées par le RAG local</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="w-5 h-5 bg-emerald-100 rounded flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-emerald-600 text-xs">✓</span>
                   </div>
-                  <span className="text-gray-700">Recommandations d'amelioration</span>
+                  <span className="text-gray-700">Recommandations d’amélioration</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="w-5 h-5 bg-emerald-100 rounded flex items-center justify-center flex-shrink-0 mt-0.5">

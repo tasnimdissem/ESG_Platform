@@ -125,7 +125,7 @@ class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=255)
-    role: str = Field(default='user', pattern=r'^(user|admin)$')
+    role: str = Field(default='user', pattern=r'^user$')
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -137,3 +137,19 @@ class ResetPasswordRequest(BaseModel):
     """Validation schema for reset password input."""
     token: str = Field(..., min_length=20, max_length=500)
     new_password: str = Field(..., min_length=8, max_length=255)
+
+
+class UpdateProfileRequest(BaseModel):
+    """Validation schema for profile update input."""
+
+    name: Optional[str] = Field(default=None, min_length=2, max_length=100)
+    email: Optional[EmailStr] = None
+    current_password: Optional[str] = Field(default=None, min_length=8, max_length=255)
+    new_password: Optional[str] = Field(default=None, min_length=8, max_length=255)
+
+    @field_validator('*', mode='before')
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if isinstance(v, str) and v.strip() == '':
+            return None
+        return v

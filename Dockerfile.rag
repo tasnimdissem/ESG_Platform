@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.2.2
 COPY RAG_SYSTEM/requirements.txt ./RAG_SYSTEM/
 RUN pip install --no-cache-dir -r RAG_SYSTEM/requirements.txt
 

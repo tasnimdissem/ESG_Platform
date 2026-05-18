@@ -13,6 +13,8 @@ class User(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     password = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(64), nullable=False, default='user')
+    avatar_url = db.Column(db.String(512), nullable=True)
+    avatar_s3_key = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     def set_password(self, raw: str) -> None:
@@ -30,6 +32,7 @@ class User(db.Model):
             'name': self.name,
             'email': self.email,
             'role': self.role,
+            'avatar_url': self.avatar_url,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 

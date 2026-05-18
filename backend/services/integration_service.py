@@ -225,12 +225,12 @@ def _call_remote_integration(normalized_request: dict[str, Any]) -> dict[str, An
             response = requests.post(fallback_endpoint, json=payload, headers=headers, timeout=timeout_seconds)
 
     if response.status_code == 401:
-        raise PermissionError('Unauthorized (invalid/missing bearer token when auth is enabled)')
+        raise PermissionError("Non autorisé (jeton Bearer invalide ou manquant lorsque l'authentification est activée)")
     response.raise_for_status()
     data = response.json()
 
     if not isinstance(data, dict):
-        raise RuntimeError('RAG integration returned invalid JSON payload')
+        raise RuntimeError("L'intégration RAG a renvoyé une charge JSON invalide")
 
     request_block = data.get('request', {}) if isinstance(data.get('request'), dict) else {}
     if not request_block and isinstance(data.get('input'), dict):

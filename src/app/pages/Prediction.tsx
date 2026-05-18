@@ -1,49 +1,62 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router';
 import { Calculator, Activity, Leaf, Users, Building, ShieldCheck, Zap, Download, History } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { fetchRecommendations, type RecommendationItem } from '../services/api';
+import { createCompany, fetchRecommendations, type RecommendationItem } from '../services/api';
 import { jsPDF } from 'jspdf';
+import { DEFAULT_INDICATORS, ESGIndicators, INDICATOR_LABELS } from '../utils/esgIndicators';
 
 type ValidationErrorDetail = {
   field: string;
   message: string;
 };
 
-const initialFormState = {
-  primary_industry: 'Technology',
-  log_market_cap: 20.5,
-  log_employees: 8.1,
-  log_revenue_wins: 15.2,
-  log_scope_1: 4.5,
-  log_scope_2: 3.2,
-  log_scope_3: 5.1,
-  log_energy_consumption: 6.8,
-  log_waste_production: 3.4,
-  log_water_consumption: 7.2,
-  log_hours_of_training_wins: 5.0,
-  log_ceo_compensation: 14.5,
-  independent_board_members_percentage: 65.0,
-  log_legal_costs_paid_for_controversies: 0.0,
-  intensity_scope_1: 0.5,
-  intensity_scope_2: 0.3,
-  intensity_scope_3: 1.2,
-  intensity_energy: 0.8,
-  intensity_waste: 0.1,
-  intensity_water: 0.9,
-  intensity_training: 0.4,
-  intensity_productivity: 1.5,
-  revenue_negative_flag: 0
-};
-
 export default function Prediction() {
-  const [formData, setFormData] = useState(initialFormState);
-  const [score, setScore] = useState<number | null>(null);
+  const [searchParams] = useSearchParams();
+  const prefilledCompanyName = searchParams.get('company') ?? '';
+  
+  const [formData, setFormData] = useState<ESGIndicators>(() => {
+    try {
+      const raw = localStorage.getItem('esg_simulator_form');
+      return raw ? JSON.parse(raw) : DEFAULT_INDICATORS;
+    } catch {
+      return DEFAULT_INDICATORS;
+    }
+  });
+  const [score, setScore] = useState<number | null>(() => {
+    try {
+      const s = localStorage.getItem('esg_simulator_score');
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
+  });
   const [suggestions, setSuggestions] = useState<RecommendationItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrorDetail[]>([]);
   const [history, setHistory] = useState<any[]>([]);
+  const [showSaveCompany, setShowSaveCompany] = useState(false);
+  const [companyName, setCompanyName] = useState(prefilledCompanyName);
+  const [isSavingCompany, setIsSavingCompany] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('esg_simulator_form', JSON.stringify(formData));
+    } catch {}
+  }, [formData]);
+
+  useEffect(() => {
+    try {
+      if (score === null) {
+        localStorage.removeItem('esg_simulator_score');
+      } else {
+        localStorage.setItem('esg_simulator_score', JSON.stringify(score));
+      }
+    } catch {}
+  }, [score]);
+
 
   const fetchHistory = async () => {
     try {
@@ -57,7 +70,7 @@ export default function Prediction() {
         setHistory(formatted);
       }
     } catch (err) {
-      console.error("Erreur historique:", err);
+      console.error("Erreur historique :", err);
     }
   };
 
@@ -85,7 +98,7 @@ export default function Prediction() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // If auth is enabled, you might need to add Authorization header here
+          // Si l'authentification est activée, ajoutez ici l'en-tête Authorization
           // 'Authorization': `Bearer ${token}`
         },
         credentials: 'include',
@@ -108,7 +121,7 @@ export default function Prediction() {
 
       setScore(data.score);
       fetchHistory();
-      // Fetch top recommendations to show inline with the score
+      // Récupérer les meilleures recommandations à afficher avec le score
       try {
         const recs = await fetchRecommendations({ score: data.score, focus_area: formData.primary_industry });
         setSuggestions(recs.recommendations?.slice(0, 3) ?? []);
@@ -134,9 +147,29 @@ export default function Prediction() {
     return 'from-red-400 to-red-600';
   };
 
+  const handleSaveToCompany = async () => {
+    if (!companyName.trim() || score === null) return;
+    setIsSavingCompany(true);
+
+    try {
+      await createCompany({
+        name: companyName,
+        indicators: formData,
+        score,
+      });
+      
+      setShowSaveCompany(false);
+      setCompanyName('');
+      alert('Entreprise enregistrée avec succès !');
+    } catch (err) {
+      console.error(err);
+      alert('Erreur lors de l\'enregistrement');
+    } finally {
+      setIsSavingCompany(false);
+    }
+  };
+
   const handleExportPDF = async () => {
-    if (score === null) return;
-    setIsExporting(true);
 
     try {
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -167,15 +200,16 @@ export default function Prediction() {
       pdf.text('Score ESG Global', margin, y);
       y += 8;
 
+      const safeScore = score ?? 0;
       const scoreColor: [number, number, number] =
-        score >= 80 ? [16, 185, 129] : score >= 50 ? [245, 158, 11] : [239, 68, 68];
+        safeScore >= 80 ? [16, 185, 129] : safeScore >= 50 ? [245, 158, 11] : [239, 68, 68];
       pdf.setFillColor(...scoreColor);
       pdf.roundedRect(margin, y, pageWidth - margin * 2, 20, 4, 4, 'F');
       pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(16);
       pdf.setFont('helvetica', 'bold');
       pdf.text(
-        `${score.toFixed(1)} / 100 — ${score >= 80 ? 'Excellente Performance' : score >= 50 ? 'Performance Moyenne' : 'Risque Élevé'}`,
+        `${safeScore.toFixed(1)} / 100 — ${safeScore >= 80 ? 'Excellente Performance' : safeScore >= 50 ? 'Performance Moyenne' : 'Risque Élevé'}`,
         pageWidth / 2, y + 13,
         { align: 'center' }
       );
@@ -206,7 +240,7 @@ export default function Prediction() {
 
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(80, 80, 80);
-        pdf.text(key.replace(/_/g, ' '), colX, y);
+        pdf.text(INDICATOR_LABELS[key] ?? key.replace(/_/g, ' '), colX, y);
         pdf.setFont('helvetica', 'normal');
         pdf.setTextColor(30, 30, 30);
         pdf.text(String(value), colX + 60, y);
@@ -298,15 +332,15 @@ export default function Prediction() {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-700">Log Market Cap</label>
+                  <label className="text-sm font-medium text-gray-700">Valeur boursière de l'entreprise</label>
                   <input type="number" step="0.1" name="log_market_cap" value={formData.log_market_cap} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-700">Log Employés</label>
+                  <label className="text-sm font-medium text-gray-700">Nombre total d'employés</label>
                   <input type="number" step="0.1" name="log_employees" value={formData.log_employees} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-700">Log Revenue Wins</label>
+                  <label className="text-sm font-medium text-gray-700">Chiffre d'affaires annuel</label>
                   <input type="number" step="0.1" name="log_revenue_wins" value={formData.log_revenue_wins} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
                 </div>
               </div>
@@ -318,21 +352,25 @@ export default function Prediction() {
                 <Leaf className="w-5 h-5 text-emerald-500" />
                 Environnement (E)
               </h2>
+              <div className="mb-3 flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs text-emerald-700">
+                <Leaf className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>Les valeurs numériques sont en <strong>échelle logarithmique</strong>. Ex : 1 000 employés → entrez ~6.9 (ln(1000)). Utilisez un calculateur si besoin.</span>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
-                  { name: 'log_scope_1', label: 'Log Scope 1' },
-                  { name: 'log_scope_2', label: 'Log Scope 2' },
-                  { name: 'log_scope_3', label: 'Log Scope 3' },
-                  { name: 'log_energy_consumption', label: 'Log Energy' },
-                  { name: 'log_waste_production', label: 'Log Waste' },
-                  { name: 'log_water_consumption', label: 'Log Water' },
-                  { name: 'intensity_scope_1', label: 'Intensité Scope 1' },
-                  { name: 'intensity_energy', label: 'Intensité Énergie' },
-                  { name: 'intensity_waste', label: 'Intensité Déchets' },
+                  { name: 'log_scope_1', label: 'Émissions CO₂ directes (usines, véhicules)', title: 'Scope 1 : émissions provenant des sources détenues ou contrôlées par l\'entreprise' },
+                  { name: 'log_scope_2', label: 'Émissions CO₂ de l\'électricité achetée', title: 'Scope 2 : émissions indirectes liées à l\'achat d\'électricité, de chaleur ou de vapeur' },
+                  { name: 'log_scope_3', label: 'Émissions CO₂ chaîne d\'approvisionnement', title: 'Scope 3 : toutes les autres émissions indirectes (fournisseurs, livraisons, déplacements...)' },
+                  { name: 'log_energy_consumption', label: 'Consommation d\'énergie totale (MWh)', title: 'Total d\'énergie consommée par l\'entreprise (électricité, gaz, fioul...)' },
+                  { name: 'log_waste_production', label: 'Déchets produits (tonnes)', title: 'Quantité totale de déchets générés par l\'activité' },
+                  { name: 'log_water_consumption', label: 'Eau consommée (m³)', title: 'Volume total d\'eau utilisé dans les opérations' },
+                  { name: 'intensity_scope_1', label: 'Ratio CO₂ direct / chiffre d\'affaires', title: 'Émissions CO₂ directes divisées par le chiffre d\'affaires — mesure l\'efficacité carbone' },
+                  { name: 'intensity_energy', label: 'Ratio énergie / chiffre d\'affaires', title: 'Énergie consommée divisée par le chiffre d\'affaires' },
+                  { name: 'intensity_waste', label: 'Ratio déchets / chiffre d\'affaires', title: 'Déchets produits divisés par le chiffre d\'affaires' },
                 ].map((field) => (
                   <div key={field.name} className="space-y-1">
-                    <label className="text-sm font-medium text-gray-700">{field.label}</label>
-                    <input type="number" step="0.1" name={field.name} value={(formData as any)[field.name]} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
+                    <label className="text-sm font-medium text-gray-700" title={(field as any).title}>{field.label}</label>
+                    <input type="number" step="0.1" name={field.name} value={(formData as any)[field.name]} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" title={(field as any).title} />
                   </div>
                 ))}
               </div>
@@ -346,16 +384,16 @@ export default function Prediction() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { name: 'log_hours_of_training_wins', label: 'Log Heures Formation' },
-                  { name: 'independent_board_members_percentage', label: '% Membres Indépendants' },
-                  { name: 'log_ceo_compensation', label: 'Log CEO Compensation' },
-                  { name: 'log_legal_costs_paid_for_controversies', label: 'Log Coûts Légaux' },
-                  { name: 'intensity_productivity', label: 'Intensité Productivité' },
-                  { name: 'revenue_negative_flag', label: 'Revenue Negative Flag (0/1)' },
+                  { name: 'log_hours_of_training_wins', label: 'Heures de formation des employés', title: 'Nombre total d\'heures de formation dispensées aux employés sur l\'année' },
+                  { name: 'independent_board_members_percentage', label: '% d\'administrateurs indépendants', title: 'Part des membres du conseil d\'administration qui sont indépendants (sans lien avec l\'entreprise)' },
+                  { name: 'log_ceo_compensation', label: 'Rémunération annuelle du PDG (€)', title: 'Salaire total du dirigeant principal (salaire fixe + bonus + avantages)' },
+                  { name: 'log_legal_costs_paid_for_controversies', label: 'Montant des litiges et amendes payés', title: 'Sommes versées pour régler des conflits légaux, amendes ou scandales' },
+                  { name: 'intensity_productivity', label: 'Chiffre d\'affaires généré par employé', title: 'Chiffre d\'affaires divisé par le nombre d\'employés — mesure la productivité moyenne' },
+                  { name: 'revenue_negative_flag', label: 'Revenus en baisse cette année ? (0 = Non, 1 = Oui)', title: 'Indiquez 1 si le chiffre d\'affaires a diminué par rapport à l\'année précédente, sinon 0' },
                 ].map((field) => (
                   <div key={field.name} className="space-y-1">
-                    <label className="text-sm font-medium text-gray-700">{field.label}</label>
-                    <input type="number" step="0.1" name={field.name} value={(formData as any)[field.name]} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
+                    <label className="text-sm font-medium text-gray-700" title={field.title}>{field.label}</label>
+                    <input type="number" step="0.1" name={field.name} value={(formData as any)[field.name]} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" title={field.title} />
                   </div>
                 ))}
               </div>
@@ -454,27 +492,74 @@ export default function Prediction() {
                     {isExporting ? 'Génération...' : 'Exporter en PDF'}
                   </button>
 
-                  {/* Inline recommendations */}
+                  <button
+                    onClick={() => setShowSaveCompany(true)}
+                    type="button"
+                    className="mt-3 w-full py-3 px-4 rounded-xl border-2 border-blue-500 text-blue-600 font-bold hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Building className="w-5 h-5" />
+                    Enregistrer pour une entreprise
+                  </button>
+
+                  {showSaveCompany && (
+                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nom de l'entreprise</label>
+                      <input
+                        type="text"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        placeholder="Ex: TechCorp SA"
+                        className="w-full px-3 py-2 border border-blue-300 rounded-md mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleSaveToCompany}
+                          disabled={isSavingCompany || !companyName.trim()}
+                          className="flex-1 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {isSavingCompany ? 'Enregistrement...' : 'Enregistrer'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowSaveCompany(false);
+                            setCompanyName('');
+                          }}
+                          className="flex-1 py-2 bg-gray-300 text-gray-700 rounded-md font-semibold hover:bg-gray-400"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {suggestions.length > 0 && (
-                    <div className="mt-6">
-                      <h4 className="font-semibold mb-3">Recommandations suggérées</h4>
+                    <div className="mt-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <h4 className="font-semibold text-emerald-900 mb-3 flex items-center gap-2">
+                        <Zap className="w-4 h-4" />
+                        Recommandations suggérées
+                      </h4>
                       <div className="space-y-3">
                         {suggestions.map((rec) => (
-                          <div key={rec.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <p className="font-semibold text-sm">{rec.title}</p>
-                                <p className="text-xs text-gray-600 mt-1">Impact: +{rec.impact} pts • Effort: {rec.effort}</p>
+                          <div key={rec.id} className="p-3 bg-white rounded-lg border border-emerald-100 hover:shadow-md transition-all">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1">
+                                <p className="font-semibold text-sm text-gray-900">{rec.title}</p>
+                                <p className="text-xs text-gray-600 mt-1">Impact: <span className="font-bold text-emerald-600">+{rec.impact} pts</span> • Effort: {rec.effort}</p>
                               </div>
-                              <div>
-                                <button
-                                  onClick={() => (window.location.href = `/recommendations?focus=${encodeURIComponent(formData.primary_industry)}`)}
-                                  className="text-sm text-emerald-600 font-semibold"
-                                >
-                                  Voir tout
-                                </button>
-                              </div>
+                              <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                rec.priority === 'high' ? 'bg-red-100 text-red-700' :
+                                rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-green-100 text-green-700'
+                              }`}>
+                                {rec.priority === 'high' ? 'Priorité haute' : rec.priority === 'medium' ? 'Priorité moyenne' : 'Priorité basse'}
+                              </span>
                             </div>
+                            <button
+                              onClick={() => (window.location.href = `/recommendations?focus=${encodeURIComponent(formData.primary_industry)}`)}
+                              className="w-full text-sm text-white bg-emerald-600 hover:bg-emerald-700 font-semibold py-2 px-3 rounded-lg transition-colors mt-2"
+                            >
+                              Voir toutes les recommandations →
+                            </button>
                           </div>
                         ))}
                       </div>

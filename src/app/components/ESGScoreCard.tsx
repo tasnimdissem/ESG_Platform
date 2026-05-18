@@ -10,7 +10,10 @@ interface ESGScoreCardProps {
 
 export function ESGScoreCard({ title, score, previousScore, icon, color }: ESGScoreCardProps) {
   const change = score - previousScore;
-  const changePercent = ((change / previousScore) * 100).toFixed(1);
+  const safePercent = previousScore !== 0 && Number.isFinite(previousScore)
+    ? (change / previousScore) * 100
+    : 0;
+  const changePercent = safePercent.toFixed(1);
 
   const getTrendIcon = () => {
     if (change > 0) return <TrendingUp className="w-4 h-4" />;

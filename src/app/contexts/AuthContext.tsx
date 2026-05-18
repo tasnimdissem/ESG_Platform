@@ -5,6 +5,7 @@ interface User {
   name: string;
   email: string;
   role: string;
+  avatar_url?: string | null;
   created_at?: string | null;
 }
 
@@ -12,6 +13,8 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<User | null>;
+  updateUser: (user: User | null) => void;
   isAuthenticated: boolean;
   isAuthLoading: boolean;
 }
@@ -29,23 +32,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
+  const refreshUser = async () => {
+    try {
+      const response = await fetch(`${AUTH_BASE_URL}/me`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        setUser(null);
+        return null;
+      }
+
+      const data = (await response.json()) as { user: User | null };
+      setUser(data.user ?? null);
+      return data.user ?? null;
+    } catch {
+      setUser(null);
+      return null;
+    }
+  };
+
   // Restore session on mount - check /me endpoint (cookies are sent automatically)
   useEffect(() => {
     const restoreSession = async () => {
       try {
-        const response = await fetch(`${AUTH_BASE_URL}/me`, {
-          credentials: 'include', // Send cookies with request
-        });
-
-        if (!response.ok) {
-          setUser(null);
-          return;
-        }
-
-        const data = (await response.json()) as { user: User };
-        setUser(data.user);
-      } catch {
-        setUser(null);
+        await refreshUser();
       } finally {
         setIsAuthLoading(false);
       }
@@ -56,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     if (!email || !password) {
-      throw new Error('Email and password are required');
+      throw new Error('L’e-mail et le mot de passe sont obligatoires');
     }
 
     const response = await fetch(`${AUTH_BASE_URL}/login`, {
@@ -70,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      let message = 'Login failed';
+      let message = 'Connexion échouée';
 
       try {
         const parsed = JSON.parse(errorBody) as { error?: string; message?: string };
@@ -101,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isAuthLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, refreshUser, updateUser: setUser, isAuthenticated: !!user, isAuthLoading }}>
       {children}
     </AuthContext.Provider>
   );

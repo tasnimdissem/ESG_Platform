@@ -27,6 +27,21 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 CREATE INDEX IF NOT EXISTS ix_password_reset_tokens_user_id ON password_reset_tokens(user_id);
 CREATE INDEX IF NOT EXISTS ix_password_reset_tokens_token_hash ON password_reset_tokens(token_hash);
 
+-- Create companies table (legacy-compatible schema)
+CREATE TABLE IF NOT EXISTS companies (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    sector VARCHAR(255),
+    country VARCHAR(255),
+    historique JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ix_companies_name ON companies(name);
+CREATE INDEX IF NOT EXISTS ix_companies_created_by_user_id ON companies(created_by_user_id);
+
 -- Seed demo user (optional)
 INSERT INTO users (name, email, password, role) 
 SELECT 'Demo User', 'demo@esg.local', '$2b$12$...', 'user'

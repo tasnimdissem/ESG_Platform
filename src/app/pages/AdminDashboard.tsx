@@ -21,8 +21,8 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     // Redirection si non admin
-    if (user && user.role !== 'admin') {
-      navigate('/dashboard');
+      if (user && user.role !== 'admin') {
+      navigate('/');
       return;
     }
 

@@ -30,24 +30,24 @@ def _is_authorized() -> bool:
 @api_bp.route('/v1/integration', methods=['POST'])
 def integration() -> object:
     if _auth_enabled() and not _is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 401
+        return jsonify({'error': 'Non autorisé'}), 401
 
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
-        return jsonify({'error': 'Bad request payload or missing mandatory field'}), 400
+        return jsonify({'error': 'Charge utile invalide ou champ obligatoire manquant'}), 400
 
     try:
         result = build_integration_response(payload)
         return jsonify(result)
     except ValueError:
-        return jsonify({'error': 'Bad request payload or missing mandatory field'}), 400
+        return jsonify({'error': 'Charge utile invalide ou champ obligatoire manquant'}), 400
     except PermissionError:
-        return jsonify({'error': 'Unauthorized (invalid/missing bearer token when auth is enabled)'}), 401
+        return jsonify({'error': "Non autorisé (jeton bearer invalide ou manquant lorsque l'authentification est activée)"}), 401
     except RuntimeError as exc:
         return jsonify({'error': str(exc)}), 502
     except Exception:
-        current_app.logger.exception('Unexpected integration error')
-        return jsonify({'error': 'Unexpected internal error'}), 500
+        current_app.logger.exception('Erreur d’intégration inattendue')
+        return jsonify({'error': 'Erreur interne inattendue'}), 500
 
 
 
@@ -60,7 +60,7 @@ def recommend() -> object:
         {
             'status': 'success',
             **recommendations,
-            'message': 'Recommendations returned successfully.',
+            'message': 'Recommandations renvoyées avec succès.',
         }
     )
 
@@ -81,3 +81,8 @@ def news() -> object:
             'count': len(items),
         }
     )
+
+
+@api_bp.route('/powerbi-url', methods=['GET'])
+def powerbi_url() -> object:
+    return jsonify({'url': current_app.config.get('POWER_BI_IFRAME_URL', '')})

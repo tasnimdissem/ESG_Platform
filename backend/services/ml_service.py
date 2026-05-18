@@ -1,6 +1,10 @@
 import os
 import joblib
 import pandas as pd
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
 
 # Safe relative paths based on the project structure (backend/services/ml_service.py -> backend/model)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -70,6 +74,19 @@ class MLService:
 
             # 2. Create a DataFrame from the input JSON
             input_df = pd.DataFrame([data])
+            # Conditional debug logging to inspect what is passed to the model
+            try:
+                ml_debug = str(os.getenv('ML_DEBUG', '0')).lower() in ('1', 'true', 'yes')
+            except Exception:
+                ml_debug = False
+            if ml_debug:
+                try:
+                    logger.debug('ML DEBUG: feature_names=%s', self.feature_names)
+                    logger.debug('ML DEBUG: raw input data=%s', data)
+                    logger.debug('ML DEBUG: input_df dtypes=%s', input_df.dtypes.apply(lambda x: str(x)).to_dict())
+                    logger.debug('ML DEBUG: input_df head=%s', input_df.head(1).to_dict(orient='records'))
+                except Exception:
+                    logger.debug('ML DEBUG: failed to log input_df: %s', traceback.format_exc())
             
             # Align columns: add missing columns as None/NaN
             for col in self.feature_names:
@@ -81,10 +98,16 @@ class MLService:
 
             # Make prediction
             prediction = self.model.predict(input_df)
-            
+            # Debug log raw prediction
+            if os.getenv('ML_DEBUG', '0').lower() in ('1', 'true', 'yes'):
+                try:
+                    logger.debug('ML DEBUG: raw prediction output=%s', prediction)
+                except Exception:
+                    logger.debug('ML DEBUG: failed to log prediction: %s', traceback.format_exc())
+
             # CatBoost predict() usually returns an array/list, grab the first element
             score = prediction[0] if isinstance(prediction, (list, tuple, pd.Series, type(pd.array([])))) or hasattr(prediction, '__len__') else prediction
-            
+
             # Optional: ensure score matches typical JSON float format, round if needed
             return float(round(score, 2))
         except Exception as e:

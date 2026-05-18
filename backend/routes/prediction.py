@@ -26,7 +26,7 @@ def predict():
         data = request.get_json()
         
         if not data:
-            return jsonify({"error": "No JSON payload provided in the request"}), 400
+            return jsonify({"error": "Aucune charge JSON n'a été fournie dans la requête"}), 400
         
         # 2. Validate input against Pydantic schema (bounds checking, type validation)
         try:
@@ -34,7 +34,7 @@ def predict():
         except ValidationError as ve:
             logger.warning(f"Validation error in predict: {ve}")
             errors = [{"field": err["loc"][0], "message": err["msg"]} for err in ve.errors()]
-            return jsonify({"error": "Invalid input data", "details": errors}), 400
+            return jsonify({"error": "Données d'entrée invalides", "details": errors}), 400
         
         logger.info(f"Predict request validated successfully")
         logger.debug(f"Predict request data: {validated_data.dict()}")
@@ -68,15 +68,15 @@ def predict():
     except ValueError as ve:
         logger.error(f"ValueError in predict: {str(ve)}")
         # Handle data validation or processing errors
-        return jsonify({"error": f"Invalid input data: {str(ve)}"}), 400
+        return jsonify({"error": f"Données d'entrée invalides : {str(ve)}"}), 400
     except RuntimeError as re:
         logger.error(f"RuntimeError in predict: {str(re)}")
         # Handle model loading or internal errors
-        return jsonify({"error": f"Internal model error: {str(re)}"}), 500
+        return jsonify({"error": f"Erreur interne du modèle : {str(re)}"}), 500
     except Exception as e:
         logger.error(f"Unexpected error in predict: {str(e)}", exc_info=True)
         # Catch-all for any other unexpected errors
-        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+        return jsonify({"error": f"Une erreur inattendue s'est produite : {str(e)}"}), 500
 
 @prediction_bp.get('/history')
 @jwt_required()

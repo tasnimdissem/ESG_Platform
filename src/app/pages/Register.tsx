@@ -28,7 +28,7 @@ export default function Register() {
 
       if (!response.ok) {
         const errorBody = await response.text();
-        let message = 'Registration failed';
+        let message = 'Inscription échouée';
         try {
           const parsed = JSON.parse(errorBody) as { error?: string; message?: string };
           message = parsed.error ?? parsed.message ?? message;
@@ -59,7 +59,7 @@ export default function Register() {
             </div>
             <div>
               <h1 className="text-4xl font-bold">ESG Predictor</h1>
-              <p className="text-emerald-200">Create your account</p>
+              <p className="text-emerald-200">Créez votre compte</p>
             </div>
           </div>
           <p className="text-xl text-emerald-100">

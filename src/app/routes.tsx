@@ -9,7 +9,10 @@ import Analytics from './pages/Analytics';
 import ChatbotRag from './pages/ChatbotRag';
 import RecommendationsRag from './pages/RecommendationsRag';
 import Prediction from './pages/Prediction';
+import Companies from './pages/Companies';
+import CompanyView from './pages/CompanyView';
 import AdminDashboard from './pages/AdminDashboard';
+import Profile from './pages/Profile';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -60,6 +63,10 @@ export const router = createBrowserRouter([
         element: <Analytics />,
       },
       {
+        path: 'profile',
+        element: <Profile />, 
+      },
+      {
         path: 'chatbot',
         element: <ChatbotRag />,
       },
@@ -70,6 +77,14 @@ export const router = createBrowserRouter([
       {
         path: 'prediction',
         element: <Prediction />,
+      },
+      {
+        path: 'companies',
+        element: <Companies />,
+      },
+      {
+        path: 'companies/:id',
+        element: <CompanyView />,
       },
       {
         path: 'admin',

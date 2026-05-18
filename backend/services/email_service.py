@@ -19,7 +19,7 @@ def _sender_address() -> str:
 
 def send_email(to_email: str, subject: str, text_body: str, html_body: str | None = None) -> bool:
     if not _is_smtp_configured():
-        current_app.logger.info('SMTP not configured, skipping email send to %s', to_email)
+        current_app.logger.info('SMTP non configuré, envoi du mail ignoré pour %s', to_email)
         return False
 
     host = str(current_app.config.get('SMTP_HOST'))
@@ -48,26 +48,28 @@ def send_email(to_email: str, subject: str, text_body: str, html_body: str | Non
     return True
 
 
-def send_password_reset_email(to_email: str, token: str) -> bool:
+def send_password_reset_email(to_email: str, token: str, expiry_minutes: int = 15) -> bool:
     reset_base_url = str(current_app.config.get('EMAIL_RESET_LINK_BASE_URL', 'http://localhost:5173/reset-password')).strip()
     query = urlencode({'token': token})
     reset_link = f'{reset_base_url}?{query}'
 
-    subject = 'ESG Platform - Password reset'
+    subject = 'Plateforme ESG - Réinitialisation du mot de passe'
     text_body = (
-        'You requested a password reset for your ESG Platform account.\n\n'
-        f'Use this link to reset your password:\n{reset_link}\n\n'
-        'If you did not request this, you can ignore this email.'
+        'Vous avez demandé une réinitialisation du mot de passe pour votre compte ESG Platform.\n\n'
+        f'Utilisez ce lien pour réinitialiser votre mot de passe :\n{reset_link}\n\n'
+        f'Ce lien expire dans {expiry_minutes} minutes.\n\n'
+        'Si vous n’êtes pas à l’origine de cette demande, vous pouvez ignorer cet e-mail.'
     )
     html_body = f'''
         <html>
           <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
-            <h2>Password reset</h2>
-            <p>You requested a password reset for your ESG Platform account.</p>
-            <p><a href="{reset_link}" style="display:inline-block;padding:12px 18px;background:#059669;color:#ffffff;text-decoration:none;border-radius:8px;">Reset password</a></p>
-            <p>If the button does not work, copy this link:</p>
+            <h2>Réinitialisation du mot de passe</h2>
+            <p>Vous avez demandé une réinitialisation du mot de passe pour votre compte ESG Platform.</p>
+            <p><a href="{reset_link}" style="display:inline-block;padding:12px 18px;background:#059669;color:#ffffff;text-decoration:none;border-radius:8px;">Réinitialiser le mot de passe</a></p>
+            <p><strong>Ce lien expire dans {expiry_minutes} minutes.</strong></p>
+            <p>Si le bouton ne fonctionne pas, copiez ce lien :</p>
             <p><a href="{reset_link}">{reset_link}</a></p>
-            <p>If you did not request this, ignore this email.</p>
+            <p>Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail.</p>
           </body>
         </html>
     '''

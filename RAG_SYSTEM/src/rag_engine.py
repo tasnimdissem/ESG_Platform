@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import json
+import time
+from datetime import datetime, timezone
+from pathlib import Path
 from urllib import error, request
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
+from uuid import uuid4
 
 import faiss
 import numpy as np
@@ -18,8 +22,71 @@ class RagEngine:
     def __init__(self) -> None:
         self.faiss_dir = config.FAISS_DIR
         self.faiss_dir.mkdir(parents=True, exist_ok=True)
-        self.index_path = self.faiss_dir / "index.faiss"
-        self.meta_path = self.faiss_dir / "metadata.json"
+        self.versions_dir = config.FAISS_VERSIONS_DIR
+        self.versions_dir.mkdir(parents=True, exist_ok=True)
+        self.current_file = config.FAISS_CURRENT_FILE
+
+    def _version_dir(self, version: str) -> Path:
+        return self.versions_dir / version
+
+    def _write_current_version(self, version: str) -> None:
+        payload = {
+            "active_version": version,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        temp_path = self.current_file.with_suffix(".tmp")
+        temp_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+        temp_path.replace(self.current_file)
+
+    def _read_current_version(self) -> Dict[str, Any]:
+        if not self.current_file.exists():
+            raise FileNotFoundError("Active index pointer not found. Call /ingest first.")
+
+        return json.loads(self.current_file.read_text(encoding="utf-8"))
+
+    def _active_paths(self) -> Tuple[str, Path, Path]:
+        current = self._read_current_version()
+        version = str(current.get("active_version", "")).strip()
+        if not version:
+            raise FileNotFoundError("Active index version is missing. Call /ingest first.")
+
+        version_dir = self._version_dir(version)
+        index_path = version_dir / "index.faiss"
+        meta_path = version_dir / "metadata.json"
+
+        if not index_path.exists() or not meta_path.exists():
+            raise FileNotFoundError("Active index files are missing. Call /ingest first.")
+
+        return version, index_path, meta_path
+
+    def _index_status(self) -> Dict[str, Any]:
+        try:
+            version, index_path, meta_path = self._active_paths()
+        except FileNotFoundError:
+            return {
+                "available": False,
+                "active_version": None,
+                "index_path": None,
+                "metadata_path": None,
+                "chunks": 0,
+                "dimension": 0,
+            }
+
+        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        try:
+            index = faiss.read_index(str(index_path))
+            dimension = int(index.d)
+        except Exception:
+            dimension = 0
+
+        return {
+            "available": True,
+            "active_version": version,
+            "index_path": str(index_path),
+            "metadata_path": str(meta_path),
+            "chunks": len(metadata),
+            "dimension": dimension,
+        }
 
     def build_index(self, chunks: List[Dict[str, str]]) -> Dict[str, int]:
         if not chunks:
@@ -35,17 +102,28 @@ class RagEngine:
         index = faiss.IndexFlatL2(vectors.shape[1])
         index.add(vectors)
 
-        faiss.write_index(index, str(self.index_path))
-        self.meta_path.write_text(json.dumps(chunks, ensure_ascii=True, indent=2), encoding="utf-8")
+        version = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + f"-{uuid4().hex[:8]}"
+        version_dir = self._version_dir(version)
+        version_dir.mkdir(parents=True, exist_ok=True)
 
-        return {"chunks": len(chunks), "dimension": int(vectors.shape[1])}
+        index_path = version_dir / "index.faiss"
+        meta_path = version_dir / "metadata.json"
+
+        faiss.write_index(index, str(index_path))
+        meta_path.write_text(json.dumps(chunks, ensure_ascii=True, indent=2), encoding="utf-8")
+        self._write_current_version(version)
+
+        return {
+            "chunks": len(chunks),
+            "dimension": int(vectors.shape[1]),
+            "version": version,
+        }
 
     def search(self, query: str, top_k: int = 5) -> List[Dict[str, str]]:
-        if not self.index_path.exists() or not self.meta_path.exists():
-            raise FileNotFoundError("Index not found. Call /ingest first.")
+        _, index_path, meta_path = self._active_paths()
 
-        index = faiss.read_index(str(self.index_path))
-        metadata: List[Dict[str, str]] = json.loads(self.meta_path.read_text(encoding="utf-8"))
+        index = faiss.read_index(str(index_path))
+        metadata: List[Dict[str, str]] = json.loads(meta_path.read_text(encoding="utf-8"))
 
         q_vec = _EMBEDDER.encode([query], convert_to_numpy=True).astype("float32")
         distances, indices = index.search(q_vec, top_k)
@@ -60,6 +138,14 @@ class RagEngine:
             results.append(item)
 
         return results
+
+    def health(self) -> Dict[str, Any]:
+        status = self._index_status()
+        status["service"] = "rag-esg"
+        status["timestamp"] = datetime.now(timezone.utc).isoformat()
+        status["embedder"] = "sentence-transformers/all-MiniLM-L6-v2"
+        status["index_strategy"] = "versioned-faiss"
+        return status
 
     def answer(self, query: str, top_k: int = 5) -> Tuple[str, List[Dict[str, str]]]:
         retrieved = self.search(query=query, top_k=top_k)

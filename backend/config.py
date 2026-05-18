@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -18,6 +19,14 @@ def _normalize_database_url(database_url: str) -> str:
     if database_url.startswith('postgres://'):
         return database_url.replace('postgres://', 'postgresql://', 1)
     return database_url
+
+
+def _first_non_empty_env(*names: str, default: str = '') -> str:
+    for name in names:
+        value = os.getenv(name, '').strip()
+        if value:
+            return value
+    return default
 
 
 def _validate_required_secrets(is_production: bool) -> None:
@@ -86,12 +95,12 @@ class Config:
     RAG_ALLOW_LOCAL_FALLBACK = os.getenv('RAG_ALLOW_LOCAL_FALLBACK', 'true').lower() in {'1', 'true', 'yes'}
     INTEGRATION_AUTH_ENABLED = os.getenv('INTEGRATION_AUTH_ENABLED', 'false').lower() in {'1', 'true', 'yes'}
     INTEGRATION_BEARER_TOKEN = os.getenv('INTEGRATION_BEARER_TOKEN', '')
-    SMTP_HOST = os.getenv('SMTP_HOST', os.getenv('MAIL_SERVER', ''))
-    SMTP_PORT = int(os.getenv('SMTP_PORT', os.getenv('MAIL_PORT', '587')))
-    SMTP_USERNAME = os.getenv('SMTP_USERNAME', os.getenv('MAIL_USERNAME', ''))
-    SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', os.getenv('MAIL_PASSWORD', ''))
-    SMTP_USE_TLS = os.getenv('SMTP_USE_TLS', os.getenv('MAIL_USE_TLS', 'true')).lower() in {'1', 'true', 'yes'}
-    SMTP_USE_SSL = os.getenv('SMTP_USE_SSL', os.getenv('MAIL_USE_SSL', 'false')).lower() in {'1', 'true', 'yes'}
+    SMTP_HOST = _first_non_empty_env('SMTP_HOST', 'MAIL_SERVER')
+    SMTP_PORT = int(_first_non_empty_env('SMTP_PORT', 'MAIL_PORT', default='587'))
+    SMTP_USERNAME = _first_non_empty_env('SMTP_USERNAME', 'MAIL_USERNAME')
+    SMTP_PASSWORD = _first_non_empty_env('SMTP_PASSWORD', 'MAIL_PASSWORD')
+    SMTP_USE_TLS = _first_non_empty_env('SMTP_USE_TLS', 'MAIL_USE_TLS', default='true').lower() in {'1', 'true', 'yes'}
+    SMTP_USE_SSL = _first_non_empty_env('SMTP_USE_SSL', 'MAIL_USE_SSL', default='false').lower() in {'1', 'true', 'yes'}
     MAIL_SERVER = SMTP_HOST
     MAIL_PORT = SMTP_PORT
     MAIL_USERNAME = SMTP_USERNAME
@@ -101,11 +110,18 @@ class Config:
     EMAIL_FROM = os.getenv('EMAIL_FROM', 'no-reply@esg-platform.local')
     EMAIL_FROM_NAME = os.getenv('EMAIL_FROM_NAME', 'ESG Platform')
     EMAIL_RESET_LINK_BASE_URL = os.getenv('EMAIL_RESET_LINK_BASE_URL', 'http://localhost:5173/reset-password')
+    RESET_PASSWORD_TOKEN_EXPIRES_MINUTES = int(os.getenv('RESET_PASSWORD_TOKEN_EXPIRES_MINUTES', '15'))
+    AWS_REGION = os.getenv('AWS_REGION', os.getenv('AWS_S3_REGION', ''))
+    AWS_S3_BUCKET = os.getenv('AWS_S3_BUCKET', '')
+    AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL', '')
+    AWS_S3_PUBLIC_BASE_URL = os.getenv('AWS_S3_PUBLIC_BASE_URL', '')
+    AVATAR_MAX_UPLOAD_BYTES = int(os.getenv('AVATAR_MAX_UPLOAD_BYTES', str(5 * 1024 * 1024)))
+    AVATAR_IMAGE_MAX_SIZE = int(os.getenv('AVATAR_IMAGE_MAX_SIZE', '512'))
     
     # Security: Password reset token exposure
-    # In development, return token in response for manual testing
-    # In production, NEVER return raw tokens - only send via email
-    RETURN_RESET_TOKEN_IN_RESPONSE = not IS_PRODUCTION
+    # Default: never return raw tokens in API responses. To enable (dev only),
+    # set RETURN_RESET_TOKEN_IN_RESPONSE=true in your .env (not recommended in prod).
+    RETURN_RESET_TOKEN_IN_RESPONSE = os.getenv('RETURN_RESET_TOKEN_IN_RESPONSE', 'false').lower() in {'1', 'true', 'yes'}
     POWER_BI_IFRAME_URL = os.getenv(
         'POWER_BI_IFRAME_URL',
         'https://app.powerbi.com/reportEmbed?reportId=YOUR_REPORT_ID&groupId=YOUR_GROUP_ID&autoAuth=true&ctid=YOUR_TENANT_ID',

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 from pathlib import Path
 from typing import Dict, List
 
@@ -9,6 +10,9 @@ from PyPDF2 import PdfReader
 
 from . import config
 from .structured_transform import transform_chunks
+
+
+logger = logging.getLogger(__name__)
 
 
 def _clean_text(text: str) -> str:
@@ -34,9 +38,12 @@ def _read_dataset(file_path: Path) -> str:
         try:
             import pandas as pd  # type: ignore
         except ImportError as exc:
-            raise RuntimeError(
-                "Reading Excel files requires pandas. Install it with: pip install pandas"
-            ) from exc
+            logger.warning(
+                "Skipping Excel file %s because pandas is not installed. "
+                "Install pandas only if you need Excel ingestion.",
+                file_path.name,
+            )
+            return ""
 
         df = pd.read_excel(file_path)
         texts = []

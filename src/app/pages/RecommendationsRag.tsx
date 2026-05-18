@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Target, TrendingUp, AlertTriangle, CheckCircle, Clock, Zap, RefreshCcw } from 'lucide-react';
+import { Target, TrendingUp, AlertTriangle, CheckCircle, Clock, Zap, RefreshCcw, X } from 'lucide-react';
 import { fetchRecommendations, type RecommendationItem } from '../services/api';
 
 export default function RecommendationsRag() {
@@ -10,6 +10,8 @@ export default function RecommendationsRag() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [ragUsed, setRagUsed] = useState(false);
   const [sourceCount, setSourceCount] = useState(0);
+  const [selectedDetails, setSelectedDetails] = useState<RecommendationItem | null>(null);
+  const [recommendationStatus, setRecommendationStatus] = useState<Record<string, 'not-started' | 'in-progress' | 'completed'>>({});
 
   const loadRecommendations = async () => {
     setIsLoading(true);
@@ -264,10 +266,25 @@ export default function RecommendationsRag() {
               </div>
 
               <div className="mt-4 flex items-center gap-3">
-                <button className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all font-semibold">
-                  Démarrer l'Action
+                <button 
+                  onClick={() => {
+                    setRecommendationStatus((prev) => ({
+                      ...prev,
+                      [rec.id]: prev[rec.id] === 'in-progress' ? 'not-started' : 'in-progress',
+                    }));
+                  }}
+                  className={`px-6 py-2 rounded-lg transition-all font-semibold ${
+                    recommendationStatus[rec.id] === 'in-progress'
+                      ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  }`}
+                >
+                  {recommendationStatus[rec.id] === 'in-progress' ? '✓ En cours' : 'Démarrer l\'Action'}
                 </button>
-                <button className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-semibold">
+                <button 
+                  onClick={() => setSelectedDetails(rec)}
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-semibold"
+                >
                   Voir Détails
                 </button>
               </div>
@@ -275,6 +292,106 @@ export default function RecommendationsRag() {
           ))
         )}
       </div>
+
+      {selectedDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white p-6 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-3 h-3 ${getCategoryColor(selectedDetails.category)} rounded-full`}></div>
+                <h2 className="text-2xl font-bold">{selectedDetails.title}</h2>
+              </div>
+              <button
+                onClick={() => setSelectedDetails(null)}
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-all"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Description</h3>
+                <p className="text-gray-700 leading-relaxed">{selectedDetails.description}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
+                  <p className="text-sm font-semibold text-gray-600 mb-1">Priorité</p>
+                  <p className={`text-lg font-bold ${
+                    selectedDetails.priority === 'high' ? 'text-red-600' :
+                    selectedDetails.priority === 'medium' ? 'text-yellow-600' :
+                    'text-green-600'
+                  }`}>
+                    {selectedDetails.priority === 'high' ? 'Haute' : selectedDetails.priority === 'medium' ? 'Moyenne' : 'Basse'}
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  <p className="text-sm font-semibold text-gray-600 mb-1">Impact Potentiel</p>
+                  <p className="text-lg font-bold text-emerald-600">+{selectedDetails.impact} points</p>
+                </div>
+
+                <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                  <p className="text-sm font-semibold text-gray-600 mb-1">Effort Requis</p>
+                  <p className={`text-lg font-bold ${
+                    selectedDetails.effort === 'high' ? 'text-red-600' :
+                    selectedDetails.effort === 'medium' ? 'text-yellow-600' :
+                    'text-green-600'
+                  }`}>
+                    {selectedDetails.effort === 'high' ? 'Élevé' : selectedDetails.effort === 'medium' ? 'Moyen' : 'Faible'}
+                  </p>
+                </div>
+
+                <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
+                  <p className="text-sm font-semibold text-gray-600 mb-1">Délai Estimé</p>
+                  <p className="text-lg font-bold text-orange-600">{selectedDetails.timeline}</p>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Plan d'Action</h3>
+                <div className="space-y-3">
+                  {selectedDetails.actions.map((action, index) => (
+                    <div key={index} className="flex gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-emerald-600 font-bold text-sm">{index + 1}</span>
+                      </div>
+                      <p className="text-gray-700">{action}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-gray-600 mb-2"><span className="font-semibold">Score actuel:</span> {selectedDetails.currentScore}</p>
+                <p className="text-sm text-gray-600"><span className="font-semibold">Score cible:</span> {selectedDetails.targetScore}</p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setRecommendationStatus((prev) => ({
+                      ...prev,
+                      [selectedDetails.id]: 'in-progress',
+                    }));
+                    setSelectedDetails(null);
+                  }}
+                  className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold transition-all"
+                >
+                  Marquer comme en cours
+                </button>
+                <button
+                  onClick={() => setSelectedDetails(null)}
+                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold transition-all"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
