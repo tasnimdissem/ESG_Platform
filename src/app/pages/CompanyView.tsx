@@ -10,7 +10,7 @@ export default function CompanyView() {
   const [company, setCompany] = useState<CompanyRecord | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [indicators, setIndicators] = useState<ESGIndicators>(DEFAULT_INDICATORS);
-  const [showForm, setShowForm] = useState(false);
+  // Prediction UI moved to the dedicated ESG simulator
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -107,32 +107,7 @@ export default function CompanyView() {
       </div>
 
       {/* Formulaire d'ajout de prédiction */}
-      <div className="mb-6 bg-white border border-slate-200 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-lg">Ajouter une nouvelle prédiction</h3>
-          {!showForm && (
-            <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700">
-              + Nouvelle prédiction
-            </button>
-          )}
-        </div>
-
-        {showForm && (
-          <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded">
-            <ESGIndicatorForm
-              data={indicators}
-              onChange={handleIndicatorChange}
-              submitLabel={isLoading ? 'Calcul en cours...' : 'Calculer et enregistrer'}
-              onSubmit={addPrediction}
-              isLoading={isLoading}
-              onCancel={() => {
-                setShowForm(false);
-                setIndicators(DEFAULT_INDICATORS);
-              }}
-            />
-          </div>
-        )}
-      </div>
+      {/* Prediction moved to the dedicated ESG simulator page */}
 
       {/* Historique détaillé */}
       <div className="bg-white border border-slate-200 rounded-lg p-6">

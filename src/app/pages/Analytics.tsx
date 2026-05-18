@@ -1,7 +1,7 @@
-// Analytics now fetches live ESG summary data from the backend so the charts reflect CatBoost-driven prediction history instead of static demo values.
-import { useEffect, useMemo, useState } from 'react';
-import { LineChart, Line, BarChart, Bar, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import { Download, Filter, Calendar, TrendingUp } from 'lucide-react';
+// La page Analytics récupère maintenant les données ESG en direct depuis le backend afin que les graphiques reflètent l'historique de prédictions CatBoost au lieu de valeurs de démonstration statiques.
+import { useEffect, useState } from 'react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Download, TrendingUp } from 'lucide-react';
 
 type MonthlyPoint = {
   mois: string;
@@ -43,6 +43,16 @@ function formatScore(value: number | null) {
   return value === null ? '—' : value.toFixed(1);
 }
 
+function toSafeNumber(value: unknown, fallback = 0) {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function formatTooltipNumber(value: unknown, digits = 2) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toFixed(digits) : '—';
+}
+
 export default function Analytics() {
   const [selectedPeriod, setSelectedPeriod] = useState('12m');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsSummary>(emptySummary);
@@ -54,9 +64,10 @@ export default function Analytics() {
       try {
         setIsLoading(true);
         setErrorMessage(null);
-        const response = await fetch('/api/analytics/summary', { credentials: 'include' });
+        const qs = new URLSearchParams({ period: selectedPeriod });
+        const response = await fetch(`/api/analytics/summary?${qs.toString()}`, { credentials: 'include' });
         if (!response.ok) {
-          throw new Error('Impossible de charger les analytics');
+          throw new Error('Impossible de charger les analyses');
         }
         const data = (await response.json()) as AnalyticsSummary;
         setAnalyticsData({
@@ -76,25 +87,45 @@ export default function Analytics() {
 
   const evolutionData = analyticsData.evolution_mensuelle.map((item) => ({
     month: item.mois,
-    score: item.score,
+    score: item.score === null ? null : toSafeNumber(item.score, 0),
   }));
 
   const topVariables = analyticsData.top_variables.map((item) => ({
     feature: item.feature,
-    importance: Number((item.importance * 100).toFixed(2)),
+    importance: toSafeNumber(item.importance, 0) * 100,
   }));
 
-  const correlationData = analyticsData.correlation_matrix.map((item) => ({
-    x: item.x,
-    y: item.y,
-    value: item.value,
-  }));
+  // correlation heatmap removed per design preference
 
-  const correlationLegend = useMemo(() => ([
-    { label: 'Forte corrélation', color: '#10b981', min: 0.7 },
-    { label: 'Moyenne', color: '#3b82f6', min: 0.5 },
-    { label: 'Faible', color: '#f59e0b', min: 0 },
-  ]), []);
+  const exportAnalyticsCSV = () => {
+    const lines: string[] = [];
+    // Summary
+    lines.push('Metric,Value');
+    lines.push(`Score moyen,${analyticsData.score_moyen ?? ''}`);
+    lines.push(`Score min,${analyticsData.score_min ?? ''}`);
+    lines.push(`Score max,${analyticsData.score_max ?? ''}`);
+    lines.push(`Nombre de predictions,${analyticsData.nb_predictions}`);
+    lines.push('');
+    // Evolution
+    lines.push('Mois,Score');
+    evolutionData.forEach((d) => {
+      lines.push(`${d.month},${d.score === null ? '' : d.score}`);
+    });
+    lines.push('');
+    // Top variables
+    lines.push('Variable,Importance (%)');
+    topVariables.forEach((v) => lines.push(`${v.feature},${v.importance.toFixed(2)}`));
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `analytics_${selectedPeriod}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const isEmptyState = !isLoading && analyticsData.nb_predictions < 2;
 
@@ -130,28 +161,28 @@ export default function Analytics() {
       {/* Header with Filters */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Analytics ESG Détaillées</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Analyses ESG détaillées</h1>
           <p className="text-gray-600">Analyse en temps réel basée sur l’historique CatBoost de la plateforme.</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          >
-            <option value="1m">1 Mois</option>
-            <option value="3m">3 Mois</option>
-            <option value="6m">6 Mois</option>
-            <option value="12m">12 Mois</option>
-            <option value="all">Tout</option>
-          </select>
+          <div className="flex items-center gap-3">
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="1m">1 Mois</option>
+              <option value="3m">3 Mois</option>
+              <option value="6m">6 Mois</option>
+              <option value="12m">12 Mois</option>
+              <option value="all">Tout</option>
+            </select>
 
-          <button className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            Exporter
-          </button>
-        </div>
+            <button onClick={exportAnalyticsCSV} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all flex items-center gap-2">
+              <Download className="w-4 h-4" />
+              Exporter
+            </button>
+          </div>
       </div>
 
       {errorMessage && (
@@ -205,7 +236,7 @@ export default function Analytics() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="month" stroke="#6b7280" />
                   <YAxis stroke="#6b7280" domain={[0, 100]} />
-                  <Tooltip />
+                  <Tooltip formatter={(value) => [formatTooltipNumber(value, 1), 'Score moyen']} />
                   <Legend />
                   <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={3} dot={{ r: 5 }} name="Score moyen" />
                 </LineChart>
@@ -219,40 +250,13 @@ export default function Analytics() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis type="number" stroke="#6b7280" />
                   <YAxis type="category" dataKey="feature" stroke="#6b7280" width={140} />
-                  <Tooltip formatter={(value: number) => [`${value}%`, 'Importance']} />
+                  <Tooltip formatter={(value) => [`${formatTooltipNumber(value, 2)}%`, 'Importance']} />
                   <Bar dataKey="importance" fill="#10b981" radius={[0, 8, 8, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Correlation heatmap */}
-          <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-            <h3 className="font-bold text-lg mb-4">Heatmap de Corrélation</h3>
-            <ResponsiveContainer width="100%" height={420}>
-              <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis type="category" dataKey="x" name="Feature X" interval={0} angle={-35} textAnchor="end" height={90} />
-                <YAxis type="category" dataKey="y" name="Feature Y" interval={0} width={120} />
-                <Tooltip cursor={{ strokeDasharray: '3 3' }} formatter={(value: number) => [`${value.toFixed(2)}`, 'Corrélation']} />
-                <Scatter data={correlationData}>
-                  {correlationData.map((entry, index) => {
-                    const absValue = Math.abs(entry.value);
-                    const fill = absValue > 0.7 ? '#10b981' : absValue > 0.5 ? '#3b82f6' : '#f59e0b';
-                    return <Cell key={`cell-${index}`} fill={fill} />;
-                  })}
-                </Scatter>
-              </ScatterChart>
-            </ResponsiveContainer>
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-6 text-xs">
-              {correlationLegend.map((item) => (
-                <div key={item.label} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span>{item.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </>
       )}
     </div>

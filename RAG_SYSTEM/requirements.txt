@@ -1,7 +1,6 @@
 flask
 openai
-sentence-transformers
+sentence-transformers==2.7.0
 faiss-cpu
 PyPDF2
-pandas
-numpy
+numpy>=1.24,<2.0.0

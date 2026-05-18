@@ -1,21 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { ESGIndicatorForm } from '../components/ESGIndicatorForm';
 import { createCompany, deleteCompany, fetchCompanies, updateCompany, type CompanyRecord } from '../services/api';
-import { DEFAULT_INDICATORS, ESGIndicators } from '../utils/esgIndicators';
+import { Calculator, AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
 
 export default function Companies() {
   const [companies, setCompanies] = useState<CompanyRecord[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
-  const [indicators, setIndicators] = useState<ESGIndicators>(DEFAULT_INDICATORS);
+  const [sector, setSector] = useState('');
+  const [country, setCountry] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editingCompany, setEditingCompany] = useState<CompanyRecord | null>(null);
   const [editName, setEditName] = useState('');
+  const [editSector, setEditSector] = useState('');
+  const [editCountry, setEditCountry] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<CompanyRecord | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,63 +41,57 @@ export default function Companies() {
     void load();
   }, []);
 
-  const handleIndicatorChange = (field: keyof ESGIndicators, value: string | number) => {
-    setIndicators((prev) => ({
-      ...prev,
-      [field]: typeof DEFAULT_INDICATORS[field] === 'number' ? (typeof value === 'string' ? parseFloat(value) || 0 : value) : value,
-    }));
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
   };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      alert('Veuillez entrer un nom d\'entreprise');
+      showToast('error', 'Veuillez entrer un nom d\'entreprise');
       return;
     }
     setIsSaving(true);
 
     try {
-      const res = await fetch('/api/predict', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(indicators),
-      });
-
-      const data = await res.json();
-      const score = data.score ?? null;
-
-      if (score === null) {
-        throw new Error('Score invalide');
-      }
-
       const newCompany = await createCompany({
-        name,
-        indicators,
-        score,
+        name: name.trim(),
+        sector: sector.trim() || null,
+        country: country.trim() || null,
       });
 
       setCompanies((prev) => [newCompany, ...prev.filter((company) => company.entreprise_id !== newCompany.entreprise_id)]);
       setShowForm(false);
       setName('');
-      setIndicators(DEFAULT_INDICATORS);
-      navigate(`/companies/${newCompany.entreprise_id}`);
+      setSector('');
+      setCountry('');
+      showToast('success', `L'entreprise "${newCompany.nom}" a été créée avec succès.`);
     } catch (err) {
       console.error('Erreur ajout entreprise', err);
-      alert('Erreur lors du calcul du score');
+      showToast('error', 'Erreur lors de la création de l\'entreprise');
     } finally {
       setIsSaving(false);
     }
   };
 
+  const handleCalculateScore = (companyName: string) => {
+    // Navigate to Prediction page with company name pre-filled
+    navigate(`/prediction?company=${encodeURIComponent(companyName)}`);
+  };
+
   const openEditDialog = (company: CompanyRecord) => {
     setEditingCompany(company);
     setEditName(company.nom);
+    setEditSector(company.sector ?? '');
+    setEditCountry(company.country ?? '');
   };
 
   const closeEditDialog = () => {
     setEditingCompany(null);
     setEditName('');
+    setEditSector('');
+    setEditCountry('');
     setIsEditing(false);
   };
 
@@ -101,43 +100,67 @@ export default function Companies() {
     if (!editingCompany) return;
     const nextName = editName.trim();
     if (!nextName) {
-      alert("Veuillez entrer un nom d'entreprise valide");
+      showToast('error', 'Veuillez entrer un nom d\'entreprise valide');
       return;
     }
 
     setIsEditing(true);
     try {
-      const updated = await updateCompany(editingCompany.entreprise_id, { name: nextName });
+      const updated = await updateCompany(editingCompany.entreprise_id, {
+        name: nextName,
+        sector: editSector.trim() || null,
+        country: editCountry.trim() || null,
+      });
       setCompanies((prev) => prev.map((company) => (company.entreprise_id === updated.entreprise_id ? updated : company)));
       closeEditDialog();
+      showToast('success', `L'entreprise "${updated.nom}" a été mise à jour avec succès.`);
     } catch (err) {
       console.error('Erreur modification entreprise', err);
-      alert("Erreur lors de la modification de l'entreprise");
+      showToast('error', 'Erreur lors de la modification de l\'entreprise');
     } finally {
       setIsEditing(false);
     }
   };
 
   const handleDelete = async (company: CompanyRecord) => {
-    const confirmed = window.confirm(`Supprimer l'entreprise "${company.nom}" ? Cette action est irréversible.`);
-    if (!confirmed) return;
+    setDeleteConfirm(company);
+  };
 
-    setIsDeletingId(company.entreprise_id);
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    
+    setIsDeletingId(deleteConfirm.entreprise_id);
     try {
-      await deleteCompany(company.entreprise_id);
-      setCompanies((prev) => prev.filter((item) => item.entreprise_id !== company.entreprise_id));
+      await deleteCompany(deleteConfirm.entreprise_id);
+      setCompanies((prev) => prev.filter((item) => item.entreprise_id !== deleteConfirm.entreprise_id));
+      showToast('success', `L'entreprise "${deleteConfirm.nom}" a été supprimée avec succès.`);
+      setDeleteConfirm(null);
     } catch (err) {
       console.error('Erreur suppression entreprise', err);
-      alert("Erreur lors de la suppression de l'entreprise");
+      showToast('error', "Erreur lors de la suppression de l'entreprise");
     } finally {
       setIsDeletingId(null);
     }
   };
 
+  const cancelDelete = () => {
+    setDeleteConfirm(null);
+  };
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Mes entreprises</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-bold">Mes entreprises</h2>
+          <div className="relative">
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Rechercher une entreprise..."
+              className="pl-3 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+            />
+          </div>
+        </div>
         <button
           onClick={() => setShowForm(true)}
           className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700"
@@ -147,31 +170,81 @@ export default function Companies() {
       </div>
 
       {showForm && (
-        <div className="mb-6 p-4 border border-slate-300 rounded-md bg-white">
-          <h3 className="text-lg font-semibold mb-4">Nouvelle entreprise</h3>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Nom de l'entreprise *</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: TechCorp SA"
-              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-slate-900">Nouvelle entreprise</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false);
+                  setName('');
+                  setSector('');
+                  setCountry('');
+                }}
+                className="text-slate-500 hover:text-slate-700 text-2xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
 
-          <h4 className="font-semibold text-slate-700 mb-3">Indicateurs ESG</h4>
-          <ESGIndicatorForm
-            data={indicators}
-            onChange={handleIndicatorChange}
-            submitLabel={isSaving ? 'Calcul en cours...' : 'Calculer et ajouter'}
-            onSubmit={handleAdd}
-            isLoading={isSaving}
-            onCancel={() => {
-              setShowForm(false);
-              setName('');
-              setIndicators(DEFAULT_INDICATORS);
-            }}
-          />
+            <form onSubmit={handleAdd} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Nom de l'entreprise *</label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ex: TechCorp SA"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Secteur (optionnel)</label>
+                <input
+                  value={sector}
+                  onChange={(e) => setSector(e.target.value)}
+                  placeholder="Ex: Industrie, Finance, Energie"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Pays (optionnel)</label>
+                <input
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  placeholder="Ex: Maroc, France"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 disabled:opacity-50 font-medium"
+                >
+                  {isSaving ? 'Création...' : 'Créer'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForm(false);
+                    setName('');
+                    setSector('');
+                    setCountry('');
+                  }}
+                  className="flex-1 border border-slate-300 text-slate-700 px-4 py-2 rounded-md hover:bg-slate-50"
+                >
+                  Annuler
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -187,14 +260,34 @@ export default function Companies() {
             Aucune entreprise enregistrée. Cliquez sur "+ Ajouter une entreprise" pour commencer.
           </div>
         )}
-        {companies.map((c) => (
+        {companies
+          .filter((c) => {
+            const term = searchTerm.trim().toLowerCase();
+            if (!term) return true;
+            const nameMatch = c.nom.toLowerCase().includes(term);
+            const score = c.historique?.[0]?.scores?.global;
+            const scoreMatch = score != null && String(score).toLowerCase().includes(term);
+            return nameMatch || scoreMatch;
+          })
+          .map((c) => (
           <div key={c.entreprise_id} className="p-4 border border-slate-200 rounded-md flex items-center justify-between gap-4 hover:bg-slate-50">
             <div>
               <div className="font-semibold text-slate-900">{c.nom}</div>
+              <div className="text-xs text-slate-500">
+                {c.sector?.trim() ? c.sector : 'Secteur non défini'} · {c.country?.trim() ? c.country : 'Pays non défini'}
+              </div>
               <div className="text-sm text-slate-500">Dernière mise à jour: {c.historique?.[0]?.date}</div>
               <div className="text-xs text-emerald-600">Score: {typeof c.historique?.[0]?.scores?.global === 'number' ? c.historique[0].scores.global.toFixed(1) : 'N/A'}</div>
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-end">
+              <button
+                type="button"
+                onClick={() => handleCalculateScore(c.nom)}
+                className="px-3 py-2 border border-blue-300 rounded text-blue-700 hover:bg-blue-50 flex items-center gap-2"
+              >
+                <Calculator className="w-4 h-4" />
+                Calculer score
+              </button>
               <button
                 type="button"
                 onClick={() => openEditDialog(c)}
@@ -234,6 +327,26 @@ export default function Companies() {
                 />
               </div>
 
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Secteur</label>
+                <input
+                  value={editSector}
+                  onChange={(e) => setEditSector(e.target.value)}
+                  placeholder="Ex: Industrie, Finance, Energie"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Pays</label>
+                <input
+                  value={editCountry}
+                  onChange={(e) => setEditCountry(e.target.value)}
+                  placeholder="Ex: Maroc, France"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
               <div className="flex items-center justify-end gap-2">
                 <button
                   type="button"
@@ -251,6 +364,77 @@ export default function Companies() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm">
+            <div className="bg-red-50 border-b border-red-200 p-6 flex items-center gap-3">
+              <AlertCircle className="w-6 h-6 text-red-600" />
+              <h2 className="text-lg font-semibold text-red-900">Confirmer la suppression</h2>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-slate-700">
+                Êtes-vous sûr de vouloir supprimer l'entreprise <span className="font-semibold">"{deleteConfirm.nom}"</span> ?
+              </p>
+              <p className="text-sm text-slate-500">
+                ⚠️ Cette action est irréversible et supprimera tous les historiques associés.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 border-t border-slate-200 p-6 flex gap-3">
+              <button
+                type="button"
+                onClick={cancelDelete}
+                className="flex-1 px-4 py-2 border border-slate-300 rounded-md text-slate-700 hover:bg-slate-100 font-medium"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={isDeletingId === deleteConfirm.entreprise_id}
+                className="flex-1 px-4 py-2 bg-red-600 rounded-md text-white hover:bg-red-700 disabled:opacity-60 font-medium flex items-center justify-center gap-2"
+              >
+                {isDeletingId === deleteConfirm.entreprise_id ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Suppression...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Supprimer
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-40 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className={`rounded-lg shadow-lg px-6 py-4 flex items-center gap-3 ${
+            toast.type === 'success' 
+              ? 'bg-emerald-50 border border-emerald-200' 
+              : 'bg-red-50 border border-red-200'
+          }`}>
+            {toast.type === 'success' ? (
+              <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+            )}
+            <p className={`${
+              toast.type === 'success' 
+                ? 'text-emerald-900' 
+                : 'text-red-900'
+            } font-medium`}>
+              {toast.message}
+            </p>
           </div>
         </div>
       )}

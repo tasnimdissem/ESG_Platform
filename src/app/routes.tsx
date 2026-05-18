@@ -12,6 +12,7 @@ import Prediction from './pages/Prediction';
 import Companies from './pages/Companies';
 import CompanyView from './pages/CompanyView';
 import AdminDashboard from './pages/AdminDashboard';
+import Profile from './pages/Profile';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -60,6 +61,10 @@ export const router = createBrowserRouter([
       {
         path: 'analytics',
         element: <Analytics />,
+      },
+      {
+        path: 'profile',
+        element: <Profile />, 
       },
       {
         path: 'chatbot',

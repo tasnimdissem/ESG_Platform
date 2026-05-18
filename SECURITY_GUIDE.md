@@ -51,6 +51,13 @@ MODEL_S3_BUCKET=your-esg-models-bucket
 MODEL_S3_REGION=us-east-1
 AWS_ACCESS_KEY_ID=<your-key>
 AWS_SECRET_ACCESS_KEY=<your-secret>
+
+# Optional: Profile avatar storage (S3)
+AWS_REGION=eu-west-3
+AWS_S3_BUCKET=your-avatar-bucket
+AWS_S3_PUBLIC_BASE_URL=https://your-avatar-bucket.s3.eu-west-3.amazonaws.com
+AVATAR_MAX_UPLOAD_BYTES=5242880
+AVATAR_IMAGE_MAX_SIZE=512
 ```
 
 ### 🛡️ Never commit `.env` to Git
@@ -147,31 +154,23 @@ class PredictRequest(BaseModel):
 
 ---
 
-## 5. Password Reset Tokens - Dev vs Production
+## 5. Réinitialisation du mot de passe
 
-### ✅ Fixed: Reset Tokens Exposed in Responses
+### ✅ Comportement attendu
 
-**In Development** (`FLASK_ENV=development`):
+La réponse API ne renvoie plus de valeur sensible. L'utilisateur reçoit uniquement un message générique et un e-mail contenant le lien de réinitialisation.
+
+**Réponse API**:
 ```json
 {
-  "message": "Reset token generated for development use.",
-  "reset_token": "abc123xyz...",  // ✓ Safe for local testing
-  "email_sent": false
-}
-```
-
-**In Production** (`FLASK_ENV=production`):
-```json
-{
-  "message": "Password reset email sent.",
-  "reset_token": null,  // ✗ Never returned in production
+  "message": "Si le compte existe, un e-mail de réinitialisation a été envoyé.",
   "email_sent": true
 }
 ```
 
 **Configuration:**
 ```python
-RETURN_RESET_TOKEN_IN_RESPONSE = not IS_PRODUCTION  # Dev only
+RETURN_RESET_TOKEN_IN_RESPONSE = False  # ne jamais exposer de valeur sensible dans l'API
 ```
 
 ---

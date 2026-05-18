@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 from typing import Any, Dict, List, Tuple
+from uuid import uuid4
 
 from flask import Flask, jsonify, request
 
-from .src import config
-from .src.ingestion import ingest_sources
-from .src.rag_engine import RagEngine
-from .src.structured_transform import transform_chunks
+from src import config
+from src.ingestion import ingest_sources
+from src.rag_engine import RagEngine
+from src.structured_transform import transform_chunks
 
 app = Flask(__name__)
 rag = RagEngine()
+ingestion_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rag-ingestion")
+ingestion_jobs: Dict[str, Dict[str, Any]] = {}
+ingestion_jobs_lock = Lock()
 
 
 @app.after_request
@@ -55,6 +61,23 @@ def _require_api_auth_if_needed() -> tuple | None:
     return None
 
 
+def _record_job(job_id: str, payload: Dict[str, Any]) -> None:
+    with ingestion_jobs_lock:
+        ingestion_jobs[job_id] = payload
+
+
+def _update_job(job_id: str, **changes: Any) -> None:
+    with ingestion_jobs_lock:
+        if job_id in ingestion_jobs:
+            ingestion_jobs[job_id].update(changes)
+
+
+def _get_job(job_id: str) -> Dict[str, Any] | None:
+    with ingestion_jobs_lock:
+        job = ingestion_jobs.get(job_id)
+        return dict(job) if job else None
+
+
 def _safe_int(value: Any, default: int, minimum: int = 1, maximum: int = 50) -> int:
     try:
         parsed = int(value)
@@ -91,6 +114,16 @@ def _overall_confidence(sources: List[Dict[str, Any]]) -> float:
         return 0.0
     values = [float(s.get("confidence", 0.0)) for s in sources]
     return round(sum(values) / len(values), 4)
+
+
+def _bool_from_payload(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    if isinstance(value, int):
+        return value != 0
+    return False
 
 
 def _wants_recommendations(value: Any) -> bool:
@@ -175,40 +208,66 @@ def home() -> tuple:
 
 @app.get("/health")
 def health() -> tuple:
-    return jsonify({"status": "ok"}), 200
+    return jsonify(rag.health()), 200
 
 
 @app.get("/api/v1/health")
 def api_health() -> tuple:
     auth_mode = "bearer" if _is_api_protected() else "none"
-    return (
-        jsonify(
-            {
-                "status": "ok",
-                "service": "rag-esg",
-                "version": "v1",
-                "auth_mode": auth_mode,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-        ),
-        200,
-    )
+    payload = rag.health()
+    payload.update({"version": "v1", "auth_mode": auth_mode})
+    return jsonify(payload), 200
 
 
 @app.post("/ingest")
 def ingest() -> tuple:
-    try:
-        chunks = ingest_sources()
-        stats = rag.build_index(chunks)
-        return (
-            jsonify(
-                {
-                    "message": "Ingestion complete",
-                    "stats": stats,
-                }
-            ),
-            200,
+    payload = request.get_json(silent=True) or {}
+    async_requested = _bool_from_payload(payload.get("async")) or _bool_from_payload(request.args.get("async"))
+
+    def _run_ingestion(job_id: str | None = None) -> Dict[str, Any]:
+        try:
+            if job_id:
+                _update_job(job_id, status="running", started_at=datetime.now(timezone.utc).isoformat())
+
+            chunks = ingest_sources()
+            stats = rag.build_index(chunks)
+            result = {
+                "message": "Ingestion complete",
+                "stats": stats,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+            if job_id:
+                _update_job(job_id, status="succeeded", finished_at=result["completed_at"], result=result)
+            return result
+        except Exception as exc:
+            if job_id:
+                _update_job(
+                    job_id,
+                    status="failed",
+                    finished_at=datetime.now(timezone.utc).isoformat(),
+                    error=str(exc),
+                )
+            raise
+
+    if async_requested:
+        job_id = uuid4().hex
+        now = datetime.now(timezone.utc).isoformat()
+        _record_job(
+            job_id,
+            {
+                "job_id": job_id,
+                "type": "ingestion",
+                "status": "queued",
+                "created_at": now,
+            },
         )
+        ingestion_executor.submit(_run_ingestion, job_id)
+        return jsonify({"message": "Ingestion queued", "job_id": job_id, "status_url": f"/api/v1/ingest/jobs/{job_id}"}), 202
+
+    try:
+        result = _run_ingestion()
+        return jsonify(result), 200
     except Exception as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -219,6 +278,19 @@ def api_ingest() -> tuple:
     if auth_error:
         return auth_error
     return ingest()
+
+
+@app.get("/api/v1/ingest/jobs/<job_id>")
+def api_ingest_job(job_id: str) -> tuple:
+    auth_error = _require_api_auth_if_needed()
+    if auth_error:
+        return auth_error
+
+    job = _get_job(job_id)
+    if not job:
+        return _json_error("job not found", 404)
+
+    return jsonify(job), 200
 
 
 @app.post("/transform")

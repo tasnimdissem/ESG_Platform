@@ -8,6 +8,7 @@ import uuid
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import IntegrityError
 
 from backend.extensions import db
 from backend.models.company import Company
@@ -105,19 +106,59 @@ def create_company() -> object:
     if not name:
         return jsonify({'error': 'Company name is required'}), 400
 
-    history_entry, error = _build_history_entry(payload)
-    if error is not None:
-        return error
+    # Allow creation with or without history entry (indicators + score)
+    history_entry = None
+    has_indicators = 'indicators' in payload or 'indicateurs' in payload
+    has_score = 'score' in payload
+    
+    if has_indicators or has_score:
+        history_entry, error = _build_history_entry(payload)
+        if error is not None:
+            return error
+    
+    # Extract sector and country if provided
+    sector = payload.get('sector')
+    sector = str(sector).strip() if sector is not None and str(sector).strip() else None
+    country = payload.get('country')
+    country = str(country).strip() if country is not None and str(country).strip() else None
+
+    # If a company with the same name already exists, append a history entry
+    # instead of raising an unhandled unique-constraint database error.
+    existing_company = Company.query.filter_by(name=name).first()
+    if existing_company is not None:
+        if history_entry is not None:
+            existing_company.add_history_entry(history_entry)
+        if sector:
+            existing_company.sector = sector
+        if country:
+            existing_company.country = country
+        existing_company.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify(existing_company.to_dict()), 200
 
     company = Company(
         name=name,
-        historique=[history_entry],
+        historique=[history_entry] if history_entry else [],
+        sector=sector,
+        country=country,
         created_by_user_id=_current_user_id(),
     )
 
-    db.session.add(company)
-    db.session.commit()
-    return jsonify(company.to_dict()), 201
+    try:
+        db.session.add(company)
+        db.session.commit()
+        return jsonify(company.to_dict()), 201
+    except IntegrityError:
+        # Race condition safety: if another request created the same name first,
+        # rollback and append history on the existing row.
+        db.session.rollback()
+        existing_company = Company.query.filter_by(name=name).first()
+        if existing_company is None:
+            return jsonify({'error': 'Une erreur de concurrence est survenue. Veuillez réessayer.'}), 409
+        existing_company.add_history_entry(history_entry)
+        existing_company.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify(existing_company.to_dict()), 200
 
 
 @companies_bp.get('/companies/<string:company_id>')

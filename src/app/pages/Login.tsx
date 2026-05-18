@@ -19,7 +19,7 @@ export default function Login() {
       await login(email, password);
       navigate('/');
     } catch {
-      setErrorMessage('Connexion echouee. Verifiez votre email et mot de passe.');
+      setErrorMessage('Connexion échouée. Vérifiez votre e-mail et votre mot de passe.');
     } finally {
       setIsLoading(false);
     }
@@ -35,12 +35,12 @@ export default function Login() {
             </div>
             <div>
               <h1 className="text-4xl font-bold">ESG Predictor</h1>
-              <p className="text-emerald-200">Intelligence Platform</p>
+              <p className="text-emerald-200">Plateforme d’intelligence ESG</p>
             </div>
           </div>
 
           <p className="text-xl text-emerald-100">
-            Plateforme innovante de prédiction et d'analyse des scores ESG utilisant le Machine Learning
+            Plateforme innovante de prédiction et d’analyse des scores ESG utilisant le machine learning.
           </p>
 
           <div className="space-y-4 pt-6">
@@ -49,8 +49,8 @@ export default function Login() {
                 <span className="text-emerald-300">✓</span>
               </div>
               <div>
-                <h3 className="font-semibold">Prédiction ML Avancée</h3>
-                <p className="text-sm text-emerald-200">Algorithmes de Machine Learning pour prédire les scores ESG</p>
+                <h3 className="font-semibold">Prédiction ML avancée</h3>
+                <p className="text-sm text-emerald-200">Algorithmes de machine learning pour prédire les scores ESG</p>
               </div>
             </div>
 
@@ -59,8 +59,8 @@ export default function Login() {
                 <span className="text-emerald-300">✓</span>
               </div>
               <div>
-                <h3 className="font-semibold">Analytics en Temps Réel</h3>
-                <p className="text-sm text-emerald-200">Visualisations interactives et insights détaillés</p>
+                <h3 className="font-semibold">Analyses en temps réel</h3>
+                <p className="text-sm text-emerald-200">Visualisations interactives et analyses détaillées</p>
               </div>
             </div>
 
@@ -69,7 +69,7 @@ export default function Login() {
                 <span className="text-emerald-300">✓</span>
               </div>
               <div>
-                <h3 className="font-semibold">Recommandations Intelligentes</h3>
+                <h3 className="font-semibold">Recommandations intelligentes</h3>
                 <p className="text-sm text-emerald-200">Suggestions personnalisées pour améliorer vos scores</p>
               </div>
             </div>
@@ -78,7 +78,7 @@ export default function Login() {
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <h2 className="text-2xl font-bold mb-2">Bienvenue</h2>
-          <p className="text-gray-600 mb-8">Connectez-vous pour accéder à la plateforme</p>
+          <p className="text-gray-600 mb-8">Connectez-vous pour accéder à la plateforme.</p>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {errorMessage && (
@@ -129,10 +129,10 @@ export default function Login() {
 
           <div className="mt-6 flex items-center justify-between text-sm">
             <Link to="/register" className="text-emerald-600 font-semibold hover:underline">
-              Creer un compte
+              Créer un compte
             </Link>
             <Link to="/forgot-password" className="text-emerald-600 font-semibold hover:underline">
-              Mot de passe oublie ?
+              Mot de passe oublié ?
             </Link>
           </div>
         </div>

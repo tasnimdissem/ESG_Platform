@@ -27,6 +27,8 @@ RAW_ARTICLES_DIR = BASE_DIR / "data" / "raw" / "articles"
 RAW_DATASETS_DIR = BASE_DIR / "data" / "raw" / "datasets"
 PROCESSED_DIR = BASE_DIR / "data" / "processed"
 FAISS_DIR = BASE_DIR / "storage" / "faiss_index"
+FAISS_VERSIONS_DIR = FAISS_DIR / "versions"
+FAISS_CURRENT_FILE = FAISS_DIR / "current.json"
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")

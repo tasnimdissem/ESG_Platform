@@ -109,6 +109,8 @@ export type CompanyHistoryItem = {
 export type CompanyRecord = {
   entreprise_id: string;
   nom: string;
+  sector?: string | null;
+  country?: string | null;
   historique: CompanyHistoryItem[];
   created_by_user_id?: number | null;
   created_at?: string | null;
@@ -117,8 +119,10 @@ export type CompanyRecord = {
 
 export type CompanyCreatePayload = {
   name: string;
-  indicators: Record<string, unknown>;
-  score: number;
+  sector?: string | null;
+  country?: string | null;
+  indicators?: Record<string, unknown>;
+  score?: number;
 };
 
 export type CompanyUpdatePayload = {
@@ -170,12 +174,12 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const rawError = await response.text();
 
-    let errorMessage = rawError || `Request failed with status ${response.status}`;
+    let errorMessage = rawError || `Requête échouée avec le statut ${response.status}`;
     try {
       const parsed = JSON.parse(rawError) as { error?: string; message?: string };
       errorMessage = parsed.error ?? parsed.message ?? errorMessage;
     } catch {
-      // Keep rawError when response is not JSON.
+      // Conserver le message brut lorsque la réponse n'est pas du JSON.
     }
 
     throw new Error(errorMessage);

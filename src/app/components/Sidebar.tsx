@@ -1,16 +1,17 @@
 import { NavLink } from 'react-router';
-import { LayoutDashboard, LineChart, MessageSquare, Lightbulb, LogOut, Leaf, Calculator, ShieldAlert, Users } from 'lucide-react';
+import { LayoutDashboard, LineChart, MessageSquare, Lightbulb, LogOut, Leaf, Calculator, ShieldAlert, Users, User } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export function Sidebar() {
   const { logout, user } = useAuth();
 
   const navItems = [
-    { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/analytics', icon: LineChart, label: 'Analytics' },
+    { path: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
+    { path: '/analytics', icon: LineChart, label: 'Analyses' },
+    { path: '/profile', icon: User, label: 'Mon profil' },
     { path: '/companies', icon: Users, label: 'Mes entreprises' },
-    { path: '/prediction', icon: Calculator, label: 'Simulateur ESG' },
-    { path: '/chatbot', icon: MessageSquare, label: 'Chatbot IA' },
+    { path: '/prediction', icon: Calculator, label: 'ESG Studio' },
+    { path: '/chatbot', icon: MessageSquare, label: 'ESGénie' },
     { path: '/recommendations', icon: Lightbulb, label: 'Recommandations' },
   ];
 
@@ -27,7 +28,7 @@ export function Sidebar() {
           </div>
           <div>
             <h1 className="font-bold text-xl">ESG Predictor</h1>
-            <p className="text-xs text-emerald-300">Platform Intelligence</p>
+            <p className="text-xs text-emerald-300">Plateforme d’intelligence</p>
           </div>
         </div>
       </div>

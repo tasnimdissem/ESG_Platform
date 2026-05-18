@@ -7,27 +7,27 @@ def _fallback_chat_response(message: str) -> str:
     normalized = (message or '').strip().lower()
 
     if not normalized:
-        return 'Please type a question about ESG, reporting, or the dashboard.'
+        return 'Veuillez saisir une question sur l’ESG, le reporting ou le tableau de bord.'
 
     if 'esg' in normalized and any(keyword in normalized for keyword in ['meaning', 'definition', 'what is', 'quoi', 'signifie']):
-        return 'ESG means Environmental, Social, and Governance. It is a framework used to assess sustainability and responsible business practices.'
+        return 'ESG signifie Environmental, Social et Governance. C’est un cadre utilisé pour évaluer la durabilité et les pratiques responsables des entreprises.'
 
     if any(keyword in normalized for keyword in ['hello', 'hi', 'hey']):
-        return 'Hello. I can help with ESG KPIs, reports, and dashboard navigation.'
+        return 'Bonjour. Je peux vous aider sur les KPI ESG, les rapports et la navigation du tableau de bord.'
 
     if 'report' in normalized:
-        return 'Use the export report action to generate a PDF summary of the current ESG snapshot.'
+        return 'Utilisez l’action d’export de rapport pour générer un résumé PDF de l’état ESG actuel.'
 
     if 'power bi' in normalized or 'powerbi' in normalized:
-        return 'The dashboard includes an iframe area reserved for your Power BI embed link.'
+        return 'Le tableau de bord inclut une zone iframe réservée à votre lien Power BI.'
 
     if 'predict' in normalized or 'recommend' in normalized:
-        return 'The ML routes are ready for future model integration and currently return structured dummy responses.'
+        return 'Les routes ML sont prêtes pour une future intégration de modèle et renvoient actuellement des réponses factices structurées.'
 
     if 'dashboard' in normalized:
-        return 'Open the dashboard to see ESG KPIs, risk level, and Power BI integration.'
+        return 'Ouvrez le tableau de bord pour voir les KPI ESG, le niveau de risque et l’intégration Power BI.'
 
-    return 'I am a local ESG assistant. Ask me about ESG meaning, dashboards, reports, recommendations, or authentication.'
+    return 'Je suis un assistant ESG local. Posez-moi des questions sur la signification de l’ESG, les tableaux de bord, les rapports, les recommandations ou l’authentification.'
 
 
 def _source_to_text(source: Any, index: int) -> str:
