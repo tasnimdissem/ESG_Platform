@@ -5,7 +5,6 @@ __pycache__/
 *.pyd
 .Python
 /app.py
-/backend/app.py
 /backend/data/
 /backend/esg_platform.db
 /backend/instance/
@@ -44,3 +43,12 @@ env/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# RAG system — fichiers générés automatiquement (trop volumineux pour GitHub)
+RAG_SYSTEM/data/processed/
+RAG_SYSTEM/data/raw/datasets/
+RAG_SYSTEM/data/raw/pdfs/
+RAG_SYSTEM/storage/
+*.faiss
+*.log
+*.log.err

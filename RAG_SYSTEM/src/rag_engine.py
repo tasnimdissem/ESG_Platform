@@ -149,24 +149,47 @@ class RagEngine:
 
     def answer(self, query: str, top_k: int = 5) -> Tuple[str, List[Dict[str, str]]]:
         retrieved = self.search(query=query, top_k=top_k)
-        
-        # Protection Context Window Overflow: Limit prompt context size 
-        # ~16000 chars is roughly 4000 tokens for most LLMs.
-        max_context_chars = 16000 
+
+        from .dataset_query import lookup_exact
+
+        max_context_chars = 16000
         current_chars = 0
-        context_lines = []
-        
+        context_lines: List[str] = []
+
+        # Prepend exact database rows first so the LLM can cite verbatim numbers.
+        exact_data = lookup_exact(query, top_k=top_k)
+        if exact_data:
+            exact_block = "=== EXACT DATA FROM DATABASE ===\n" + exact_data
+            context_lines.append(exact_block)
+            current_chars += len(exact_block)
+
         for item in retrieved:
             line = f"[{item['source_type']}::{item['source_name']}::{item['chunk_id']}] {item['text']}"
             if current_chars + len(line) > max_context_chars and context_lines:
-                # Stop appending if context size exceeds the limit
                 break
             context_lines.append(line)
             current_chars += len(line)
 
+        has_exact = bool(exact_data)
+        if has_exact:
+            system_prompt = (
+                "You are a precise ESG data analyst. "
+                "The context includes exact data rows extracted from the database. "
+                "You MUST cite those numerical values verbatim — never round, never estimate. "
+                "Always include the company name, year, and all relevant scores exactly as shown. "
+                "When asked to rank or compare companies, use the exact values to do so. "
+                "Answer only from the provided context. If data for a specific request is absent, say so briefly without referencing internal data formats or markers."
+            )
+        else:
+            system_prompt = (
+                "You are a precise ESG data analyst. "
+                "Answer only from the provided context. "
+                "If the information needed to fully answer the question is not in the context, say so briefly and share what relevant information is available. "
+                "Do not reference internal markers, formats, or data structures."
+            )
+
         prompt = (
-            "You are an ESG assistant. Answer only from the context. "
-            "If context is insufficient, say that clearly.\n\n"
+            f"{system_prompt}\n\n"
             f"Question: {query}\n\n"
             "Context:\n"
             + "\n\n".join(context_lines)
@@ -203,10 +226,10 @@ class RagEngine:
             response = client.chat.completions.create(
                 model=config.GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": "You are an ESG assistant."},
+                    {"role": "system", "content": "You are a precise ESG data analyst. Always cite exact numerical values from the context verbatim. Never round or approximate values that are explicitly provided."},
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.2,
+                temperature=0.0,
             )
             content = response.choices[0].message.content
             return (content or "").strip()
@@ -222,10 +245,10 @@ class RagEngine:
             response = client.chat.completions.create(
                 model=config.OPENAI_MODEL,
                 messages=[
-                    {"role": "system", "content": "You are an ESG assistant."},
+                    {"role": "system", "content": "You are a precise ESG data analyst. Always cite exact numerical values from the context verbatim. Never round or approximate values that are explicitly provided."},
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.2,
+                temperature=0.0,
             )
             content = response.choices[0].message.content
             return (content or "").strip()
@@ -258,6 +281,18 @@ class RagEngine:
             return ""
 
     def _fallback_answer(self, query: str, retrieved: List[Dict[str, str]]) -> str:
+        from .dataset_query import lookup_exact
+
+        # Try to answer directly from exact database data even without an LLM.
+        exact_data = lookup_exact(query, top_k=10)
+        if exact_data:
+            lines = [
+                "⚠️ LLM unavailable — showing exact database results directly:",
+                "",
+                exact_data,
+            ]
+            return "\n".join(lines)
+
         if not retrieved:
             return "No relevant context was found in the index for this question."
 

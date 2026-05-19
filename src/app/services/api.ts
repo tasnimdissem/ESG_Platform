@@ -14,6 +14,36 @@ export type ChatResponse = {
   isFallback?: boolean;
 };
 
+export type TranscribeResponse = {
+  transcript: string;
+  command: string;
+  query: string;
+  language_hint: string | null;
+  supported_languages: string[];
+};
+
+export type VoiceQueryResponse = {
+  transcript: string;
+  command: string;
+  query: string;
+  answer: string;
+  sources: string[];
+  confidence: number;
+  session_id: string | null;
+};
+
+export type ConversationTurn = {
+  question: string;
+  answer: string;
+  timestamp: string;
+};
+
+export type ConversationHistoryResponse = {
+  session_id: string;
+  history: ConversationTurn[];
+  turn_count: number;
+};
+
 export type RecommendationItem = {
   id: string;
   title: string;
@@ -136,16 +166,6 @@ export type CompanyHistoryPayload = {
   score: number;
 };
 
-type RagQueryResponse = {
-  input?: {
-    question?: string;
-    top_k?: number;
-  };
-  output?: {
-    answer?: string;
-    sources?: IntegrationSource[];
-  };
-};
 
 type RecommendationsQuery = {
   score?: number;
@@ -353,5 +373,94 @@ export async function addCompanyHistory(companyId: string, payload: CompanyHisto
   return fetchJson<CompanyRecord>(`/api/companies/${companyId}/history`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Voice & conversation API
+// ---------------------------------------------------------------------------
+
+async function fetchMultipart<T>(url: string, body: FormData): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    body,
+  });
+  if (!response.ok) {
+    const raw = await response.text();
+    let msg = raw || `Request failed with status ${response.status}`;
+    try {
+      const parsed = JSON.parse(raw) as { error?: string };
+      msg = parsed.error ?? msg;
+    } catch { /* keep raw */ }
+    throw new Error(msg);
+  }
+  return (await response.json()) as T;
+}
+
+export async function transcribeAudio(
+  audio: Blob | File,
+  language = 'auto'
+): Promise<TranscribeResponse> {
+  const form = new FormData();
+  form.append('audio', audio, audio instanceof File ? audio.name : 'recording.webm');
+  form.append('language', language);
+  return fetchMultipart<TranscribeResponse>('/api/v1/transcribe', form);
+}
+
+export async function sendVoiceQuery(
+  audioOrBlob: Blob | File | null,
+  sessionId: string | null,
+  language = 'auto',
+  topK = 5,
+  fallbackText?: string
+): Promise<VoiceQueryResponse> {
+  const form = new FormData();
+  const cleanText = fallbackText?.trim() ?? '';
+  const hasAudio = audioOrBlob !== null && audioOrBlob.size > 0;
+
+  if (cleanText) {
+    // Browser already transcribed via Web Speech API — send as text, skip Whisper
+    form.append('text', cleanText);
+  } else if (hasAudio) {
+    // No browser transcript — send raw audio for Whisper to transcribe
+    form.append('audio', audioOrBlob as Blob | File, audioOrBlob instanceof File ? audioOrBlob.name : 'recording.webm');
+  } else {
+    throw new Error('No audio or text to send');
+  }
+  if (sessionId) form.append('session_id', sessionId);
+  form.append('language', language);
+  form.append('top_k', String(topK));
+  return fetchMultipart<VoiceQueryResponse>('/api/v1/voice-query', form);
+}
+
+export async function fetchChatResponseWithSession(
+  message: string,
+  sessionId: string | null
+): Promise<ChatResponse> {
+  const payload: IntegrationRequest & { session_id?: string } = {
+    client_request_id: `chat-${Date.now()}`,
+    message,
+    top_k: 5,
+    include_recommendations: false,
+  };
+  if (sessionId) payload.session_id = sessionId;
+  const data = await fetchIntegration(payload);
+
+  return {
+    answer: data.response?.answer ?? '',
+    sources: normalizeSourceLabels(data.response?.sources),
+    confidence: data.response?.sources?.length ? 0.9 : 0,
+    isFallback: data.meta?.source === 'fallback',
+  };
+}
+
+export async function getConversationHistory(sessionId: string): Promise<ConversationHistoryResponse> {
+  return fetchJson<ConversationHistoryResponse>(`/api/v1/conversations/${sessionId}`);
+}
+
+export async function clearConversationHistory(sessionId: string): Promise<void> {
+  await fetchJson<{ cleared: boolean }>(`/api/v1/conversations/${sessionId}`, {
+    method: 'DELETE',
   });
 }
