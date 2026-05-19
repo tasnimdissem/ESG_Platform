@@ -37,26 +37,64 @@ def _read_dataset(file_path: Path) -> str:
     if suffix in {".xlsx", ".xls"}:
         try:
             import pandas as pd  # type: ignore
-        except ImportError as exc:
+        except ImportError:
             logger.warning(
-                "Skipping Excel file %s because pandas is not installed. "
-                "Install pandas only if you need Excel ingestion.",
+                "Skipping Excel file %s because pandas is not installed.",
                 file_path.name,
             )
             return ""
 
-        df = pd.read_excel(file_path)
+        # Some .xls files are actually CSVs — fall back gracefully.
+        try:
+            df = pd.read_excel(file_path)
+        except Exception:
+            try:
+                df = pd.read_csv(file_path, encoding="utf-8", on_bad_lines="skip")
+            except Exception as exc:
+                logger.warning("Could not read dataset %s: %s", file_path.name, exc)
+                return ""
+
         texts = []
         for _, row in df.iterrows():
-            text = f"""
-Company: {row.get('company', '')}
-Sector: {row.get('sector', '')}
-CO2 emissions: {row.get('co2', '')}
-Energy consumption: {row.get('energy', '')}
-Employee satisfaction: {row.get('employee', '')}
-Board diversity: {row.get('board', '')}
-"""
-            texts.append(_clean_text(text))
+            # Support both legacy schema (company/sector/co2...) and the ESG model schema.
+            company   = row.get("company_name") or row.get("company", "")
+            sector    = row.get("primary_industry") or row.get("sector", "")
+            country   = row.get("hq_country", "")
+            year      = row.get("year", "")
+            ticker    = row.get("ticker", "")
+            esg_score = row.get("esg_score_v3", "")
+            score_e   = row.get("score_E", "")
+            score_s   = row.get("score_S", "")
+            score_g   = row.get("score_G", "")
+            scope1    = row.get("log_scope_1") or row.get("co2", "")
+            scope2    = row.get("log_scope_2", "")
+            scope3    = row.get("log_scope_3", "")
+            energy    = row.get("log_energy_consumption") or row.get("energy", "")
+            board     = row.get("independent_board_members_percentage") or row.get("board", "")
+            employees = row.get("log_employees") or row.get("employee", "")
+            training  = row.get("log_hours_of_training_wins", "")
+            waste     = row.get("log_waste_production", "")
+            water     = row.get("log_water_consumption", "")
+
+            parts = [f"Company: {company}", f"Sector: {sector}"]
+            if country:   parts.append(f"Country: {country}")
+            if year:      parts.append(f"Year: {year}")
+            if ticker:    parts.append(f"Ticker: {ticker}")
+            if esg_score != "": parts.append(f"ESG Score: {esg_score}")
+            if score_e   != "": parts.append(f"Environmental Score: {score_e}")
+            if score_s   != "": parts.append(f"Social Score: {score_s}")
+            if score_g   != "": parts.append(f"Governance Score: {score_g}")
+            if scope1    != "": parts.append(f"Scope 1 Emissions (log): {scope1}")
+            if scope2    != "": parts.append(f"Scope 2 Emissions (log): {scope2}")
+            if scope3    != "": parts.append(f"Scope 3 Emissions (log): {scope3}")
+            if energy    != "": parts.append(f"Energy Consumption (log): {energy}")
+            if waste     != "": parts.append(f"Waste Production (log): {waste}")
+            if water     != "": parts.append(f"Water Consumption (log): {water}")
+            if board     != "": parts.append(f"Board Independence: {board}")
+            if employees != "": parts.append(f"Employees (log): {employees}")
+            if training  != "": parts.append(f"Training Hours (log): {training}")
+
+            texts.append(_clean_text(" | ".join(parts)))
         return "\n".join(texts)
 
     if suffix == ".json":

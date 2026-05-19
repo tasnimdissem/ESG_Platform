@@ -5,6 +5,7 @@ from flask import Blueprint, current_app, jsonify, request
 from backend.services.esg_service import compute_esg_score, get_recommendations, validate_predict_payload
 from backend.services.integration_service import build_integration_response
 from backend.services.news_service import fetch_esg_news
+from backend.services.conversation_service import add_turn, build_history_block
 
 
 api_bp = Blueprint('api', __name__)
@@ -36,8 +37,22 @@ def integration() -> object:
     if not isinstance(payload, dict):
         return jsonify({'error': 'Charge utile invalide ou champ obligatoire manquant'}), 400
 
+    # Conversation history: prepend previous turns to the message when session_id is present
+    session_id = str(payload.get('session_id') or '').strip() or None
+    if session_id:
+        history_block = build_history_block(session_id)
+        if history_block:
+            original_message = str(payload.get('message', '')).strip()
+            payload = {**payload, 'message': f"{history_block}\n\n{original_message}"}
+
     try:
         result = build_integration_response(payload)
+        # Store this turn in history so future requests have context
+        if session_id:
+            answer = result.get('response', {}).get('answer', '')
+            question = str(payload.get('message', '')).split('\n\n')[-1].strip()
+            if answer:
+                add_turn(session_id, question, answer)
         return jsonify(result)
     except ValueError:
         return jsonify({'error': 'Charge utile invalide ou champ obligatoire manquant'}), 400
