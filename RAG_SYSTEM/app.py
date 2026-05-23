@@ -86,8 +86,12 @@ def _safe_int(value: Any, default: int, minimum: int = 1, maximum: int = 50) -> 
     return max(minimum, min(maximum, parsed))
 
 
-def _source_confidence(distance: float) -> float:
-    # Convert FAISS L2 distance into an intuitive [0,1] confidence score.
+def _source_confidence(item: Dict[str, Any]) -> float:
+    # Prefer the pre-computed cosine similarity from rag_engine when available.
+    # Fallback: estimate from squared L2 distance using 1/(1+d).
+    if "similarity" in item:
+        return round(float(item["similarity"]), 4)
+    distance = float(item.get("distance", 0.0))
     return round(1.0 / (1.0 + max(distance, 0.0)), 4)
 
 
@@ -103,7 +107,7 @@ def _normalize_sources(sources: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "chunk_id": item.get("chunk_id", "unknown"),
                 "text": item.get("text", ""),
                 "distance": distance,
-                "confidence": _source_confidence(distance),
+                "confidence": _source_confidence(item),
             }
         )
     return normalized

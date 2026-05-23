@@ -7,7 +7,13 @@ import os
 from datetime import datetime, timedelta
 
 from flask import Blueprint, current_app, jsonify, request
-from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
+from flask_jwt_extended import (
+    create_access_token,
+    get_jwt_identity,
+    jwt_required,
+    set_access_cookies,
+    unset_jwt_cookies,
+)
 from pydantic import ValidationError
 from sqlalchemy import inspect, text
 
@@ -85,14 +91,7 @@ def register() -> object:
     
     # Return only user info; token is set in secure HttpOnly cookie
     response = jsonify({'message': 'Inscription réussie', 'user': user.to_dict()})
-    response.set_cookie(
-        key=current_app.config.get('JWT_COOKIE_NAME', 'access_token_cookie'),
-        value=access_token,
-        httponly=True,
-        secure=current_app.config.get('JWT_COOKIE_SECURE', False),
-        samesite=current_app.config.get('JWT_COOKIE_SAMESITE', 'Strict'),
-        max_age=current_app.config.get('JWT_ACCESS_TOKEN_EXPIRES', 86400),
-    )
+    set_access_cookies(response, access_token)
     return response, 201
 
 
@@ -133,14 +132,7 @@ def login() -> object:
         
         # Return only user info; token is set in secure HttpOnly cookie
         response = jsonify({'message': 'Connexion réussie', 'user': user.to_dict()})
-        response.set_cookie(
-            key=current_app.config.get('JWT_COOKIE_NAME', 'access_token_cookie'),
-            value=access_token,
-            httponly=True,
-            secure=current_app.config.get('JWT_COOKIE_SECURE', False),
-            samesite=current_app.config.get('JWT_COOKIE_SAMESITE', 'Strict'),
-            max_age=current_app.config.get('JWT_ACCESS_TOKEN_EXPIRES', 86400),
-        )
+        set_access_cookies(response, access_token)
         return response
     
     except Exception as e:
@@ -233,14 +225,7 @@ def update_me() -> object:
 def logout() -> object:
     """Clear the authentication cookie."""
     response = jsonify({'message': 'Déconnexion réussie'})
-    response.set_cookie(
-        key=current_app.config.get('JWT_COOKIE_NAME', 'access_token_cookie'),
-        value='',
-        httponly=True,
-        secure=current_app.config.get('JWT_COOKIE_SECURE', False),
-        samesite=current_app.config.get('JWT_COOKIE_SAMESITE', 'Strict'),
-        max_age=0,  # Delete cookie immediately
-    )
+    unset_jwt_cookies(response)
     return response
 
 

@@ -1,0 +1,261 @@
+<mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1"
+              tooltips="1" connect="1" arrows="1" fold="1" page="1"
+              pageScale="1" pageWidth="1654" pageHeight="1169"
+              math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+
+    <!-- PARTICIPANTS -->
+
+    <mxCell id="actor1" value="Utilisateur"
+      style="shape=mxgraph.flowchart.start_2;fillColor=#f5f5f5;
+             strokeColor=#666666;fontColor=#333333;fontSize=11;fontStyle=1;
+             labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="30" y="30" width="40" height="60" as="geometry" />
+    </mxCell>
+    <mxCell id="box2" value="ESGenie UI"
+      style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;
+             strokeColor=#6c8ebf;fontSize=11;fontStyle=1;"
+      vertex="1" parent="1">
+      <mxGeometry x="170" y="40" width="130" height="40" as="geometry" />
+    </mxCell>
+
+    <mxCell id="box3" value="API Flask"
+      style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;
+             strokeColor=#82b366;fontSize=11;fontStyle=1;"
+      vertex="1" parent="1">
+      <mxGeometry x="380" y="40" width="130" height="40" as="geometry" />
+    </mxCell>
+
+    <mxCell id="box4" value="IntegrationService"
+      style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;
+             strokeColor=#9673a6;fontSize=11;fontStyle=1;"
+      vertex="1" parent="1">
+      <mxGeometry x="590" y="40" width="160" height="40" as="geometry" />
+    </mxCell>
+
+    <mxCell id="box5" value="RAG API distante"
+      style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;
+             strokeColor=#d6b656;fontSize=11;fontStyle=1;"
+      vertex="1" parent="1">
+      <mxGeometry x="840" y="40" width="150" height="40" as="geometry" />
+    </mxCell>
+
+    <mxCell id="box6" value="Local RAG Fallback"
+      style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;
+             strokeColor=#b85450;fontSize=11;fontStyle=1;"
+      vertex="1" parent="1">
+      <mxGeometry x="1080" y="40" width="160" height="40" as="geometry" />
+    </mxCell>
+
+    <!-- LIFELINES -->
+
+    <mxCell id="ll1" value=""
+      style="endArrow=none;dashed=1;strokeColor=#aaaaaa;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="50"   y="90"  as="sourcePoint" />
+        <mxPoint x="50"   y="800" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <mxCell id="ll2" value=""
+      style="endArrow=none;dashed=1;strokeColor=#aaaaaa;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="235"  y="80"  as="sourcePoint" />
+        <mxPoint x="235"  y="800" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <mxCell id="ll3" value=""
+      style="endArrow=none;dashed=1;strokeColor=#aaaaaa;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="445"  y="80"  as="sourcePoint" />
+        <mxPoint x="445"  y="800" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <mxCell id="ll4" value=""
+      style="endArrow=none;dashed=1;strokeColor=#aaaaaa;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="670"  y="80"  as="sourcePoint" />
+        <mxPoint x="670"  y="800" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <mxCell id="ll5" value=""
+      style="endArrow=none;dashed=1;strokeColor=#aaaaaa;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="915"  y="80"  as="sourcePoint" />
+        <mxPoint x="915"  y="800" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <mxCell id="ll6" value=""
+      style="endArrow=none;dashed=1;strokeColor=#aaaaaa;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="1160" y="80"  as="sourcePoint" />
+        <mxPoint x="1160" y="800" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <!-- MSG 1 : Poser une question ESG -->
+
+    <mxCell id="msg1" value="Poser une question ESG"
+      style="endArrow=block;endFill=1;fontSize=10;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="50"  y="155" as="sourcePoint" />
+        <mxPoint x="235" y="155" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <!-- MSG 2 : POST /api/v1/integration -->
+
+    <mxCell id="msg2" value="POST /api/v1/integration"
+      style="endArrow=block;endFill=1;fontSize=10;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="235" y="205" as="sourcePoint" />
+        <mxPoint x="445" y="205" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <!-- MSG 3 : Traitement requete RAG -->
+
+    <mxCell id="msg3" value="Traitement requete RAG"
+      style="endArrow=block;endFill=1;fontSize=10;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="445" y="250" as="sourcePoint" />
+        <mxPoint x="670" y="250" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <!-- ALT BLOCK -->
+
+    <mxCell id="alt_frame" value=""
+      style="rounded=0;fillColor=none;strokeColor=#0050ef;"
+      vertex="1" parent="1">
+      <mxGeometry x="225" y="272" width="1015" height="380" as="geometry" />
+    </mxCell>
+
+    <mxCell id="alt_tag" value="alt"
+      style="rounded=0;fillColor=#dae8fc;strokeColor=#0050ef;
+             fontSize=10;fontStyle=1;"
+      vertex="1" parent="1">
+      <mxGeometry x="225" y="272" width="34" height="18" as="geometry" />
+    </mxCell>
+
+    <!-- Branche 1 : RAG distant disponible -->
+
+    <mxCell id="alt_cond1" value="[RAG distant disponible]"
+      style="text;html=1;align=left;fontSize=10;fontStyle=2;"
+      vertex="1" parent="1">
+      <mxGeometry x="265" y="274" width="240" height="16" as="geometry" />
+    </mxCell>
+
+    <mxCell id="msg4" value="Requete RAG distante"
+      style="endArrow=block;endFill=1;fontSize=10;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="670" y="310" as="sourcePoint" />
+        <mxPoint x="915" y="310" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <mxCell id="msg5" value="Reponse + sources"
+      style="endArrow=open;endFill=0;dashed=1;fontSize=10;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="915" y="350" as="sourcePoint" />
+        <mxPoint x="670" y="350" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <mxCell id="msg6" value="Reponse normalisee"
+      style="endArrow=open;endFill=0;dashed=1;fontSize=10;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="670" y="390" as="sourcePoint" />
+        <mxPoint x="445" y="390" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <!-- Separateur alt -->
+
+    <mxCell id="alt_sep" value=""
+      style="endArrow=none;strokeColor=#0050ef;dashed=1;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="225"  y="415" as="sourcePoint" />
+        <mxPoint x="1240" y="415" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <!-- Branche 2 : RAG distant indisponible -->
+
+    <mxCell id="alt_cond2" value="[RAG distant indisponible - timeout ou erreur reseau]"
+      style="text;html=1;align=left;fontSize=10;fontStyle=2;"
+      vertex="1" parent="1">
+      <mxGeometry x="265" y="418" width="360" height="16" as="geometry" />
+    </mxCell>
+
+    <mxCell id="msg7" value="Recherche vectorielle FAISS (local)"
+      style="endArrow=block;endFill=1;fontSize=10;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="670"  y="458" as="sourcePoint" />
+        <mxPoint x="1160" y="458" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <mxCell id="msg8" value="Reponse locale + sources"
+      style="endArrow=open;endFill=0;dashed=1;fontSize=10;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="1160" y="500" as="sourcePoint" />
+        <mxPoint x="670"  y="500" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <mxCell id="msg9" value="Reponse fallback"
+      style="endArrow=open;endFill=0;dashed=1;fontSize=10;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="670" y="540" as="sourcePoint" />
+        <mxPoint x="445" y="540" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <!-- MSG 10 : 200 OK + reponse RAG -->
+
+    <mxCell id="msg10" value="200 OK + reponse RAG (answer, sources)"
+      style="endArrow=open;endFill=0;dashed=1;fontSize=10;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="445" y="690" as="sourcePoint" />
+        <mxPoint x="235" y="690" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+    <!-- MSG 11 : Affichage reponse -->
+
+    <mxCell id="msg11" value="Affichage de la reponse"
+      style="endArrow=open;endFill=0;dashed=1;fontSize=10;"
+      edge="1" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <mxPoint x="235" y="735" as="sourcePoint" />
+        <mxPoint x="50"  y="735" as="targetPoint" />
+      </mxGeometry>
+    </mxCell>
+
+  </root>
+</mxGraphModel>

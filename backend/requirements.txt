@@ -4,6 +4,7 @@ openai>=1.30.0
 python-dotenv>=1.0.1
 flask-cors
 Flask-SQLAlchemy
+Flask-Migrate>=4.0.0
 flask-jwt-extended
 flask-bcrypt
 flask-limiter>=3.5.0

@@ -7,10 +7,13 @@ import traceback
 
 from flask import Flask, jsonify
 from flask_limiter.errors import RateLimitExceeded
+from flask_jwt_extended.exceptions import JWTExtendedException, NoAuthorizationError
 from sqlalchemy.exc import SQLAlchemyError, OperationalError
+from werkzeug.exceptions import HTTPException
 
 from backend.config import Config
 from backend.extensions import bcrypt, db, jwt, limiter
+from flask_migrate import Migrate
 from backend.routes.api import api_bp
 from backend.routes.companies import companies_bp
 from backend.routes.analytics import analytics_bp
@@ -18,6 +21,7 @@ from backend.routes.auth import auth_bp
 from backend.routes.prediction import prediction_bp
 from backend.routes.admin import admin_bp
 from backend.routes.voice import voice_bp
+from backend.routes.chat import chat_bp
 from flask_cors import CORS  # FIXED: Importer CORS
 
 # Configure logging for debugging errors
@@ -46,6 +50,7 @@ def create_app() -> Flask:
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', app.config.get('SECRET_KEY'))
 
     db.init_app(app)
+    Migrate(app, db)
     bcrypt.init_app(app)
     jwt.init_app(app)
     limiter.init_app(app)
@@ -64,6 +69,7 @@ def create_app() -> Flask:
     app.register_blueprint(prediction_bp, url_prefix='/api')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     app.register_blueprint(voice_bp, url_prefix='/api')
+    app.register_blueprint(chat_bp, url_prefix='/api/chat')
 
     @app.get('/api/health')
     def health() -> object:
@@ -77,6 +83,7 @@ def create_app() -> Flask:
         from backend.models.user import PasswordResetToken, User  # noqa: F401
         from backend.models.prediction import PredictionHistory  # noqa: F401
         from backend.models.company import Company  # noqa: F401
+        from backend.models.chat import ChatConversation, ChatMessage  # noqa: F401
         from backend.routes.companies import ensure_company_schema
         from backend.routes.auth import ensure_user_schema
 
@@ -113,6 +120,18 @@ def create_app() -> Flask:
         """Return a proper 429 response for rate-limited requests."""
         logger.warning(f"Rate limit exceeded: {str(error)}")
         return jsonify({'error': 'Trop de requêtes. Veuillez réessayer plus tard.'}), 429
+
+    @app.errorhandler(JWTExtendedException)
+    def handle_jwt_error(error: JWTExtendedException) -> tuple:
+        """Return 401 for ALL JWT errors: missing token, expired, malformed, wrong type."""
+        logger.warning(f"JWT error ({type(error).__name__}): {str(error)}")
+        return jsonify({'error': 'Session expirée ou invalide. Veuillez vous reconnecter.'}), 401
+
+    @app.errorhandler(HTTPException)
+    def handle_http_error(error: HTTPException) -> tuple:
+        """Preserve Flask/HTTP errors instead of converting them to 500s."""
+        logger.warning(f"HTTP error: {error.code} {error.description}")
+        return jsonify({'error': error.description}), error.code
 
     @app.errorhandler(Exception)
     def handle_generic_error(error: Exception) -> tuple:

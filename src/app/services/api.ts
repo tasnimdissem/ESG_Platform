@@ -464,3 +464,63 @@ export async function clearConversationHistory(sessionId: string): Promise<void>
     method: 'DELETE',
   });
 }
+
+// ---------------------------------------------------------------------------
+// Persistent chat history (per user account)
+// ---------------------------------------------------------------------------
+
+export type ChatConversationSummary = {
+  id: number;
+  title: string;
+  session_id: string | null;
+  created_at: string;
+};
+
+export type ChatMessageRecord = {
+  id: number;
+  sender: 'user' | 'bot';
+  text: string;
+  sources: string[];
+  timestamp: string;
+};
+
+export type ChatConversationDetail = {
+  conversation: ChatConversationSummary;
+  messages: ChatMessageRecord[];
+};
+
+export async function listChatConversations(): Promise<ChatConversationSummary[]> {
+  return fetchJson<ChatConversationSummary[]>('/api/chat/conversations');
+}
+
+export async function createChatConversation(
+  title = 'Nouvelle conversation',
+  sessionId?: string
+): Promise<ChatConversationSummary> {
+  return fetchJson<ChatConversationSummary>('/api/chat/conversations', {
+    method: 'POST',
+    body: JSON.stringify({ title, session_id: sessionId }),
+  });
+}
+
+export async function getChatConversation(convId: number): Promise<ChatConversationDetail> {
+  return fetchJson<ChatConversationDetail>(`/api/chat/conversations/${convId}`);
+}
+
+export async function saveChatMessage(
+  convId: number,
+  sender: 'user' | 'bot',
+  text: string,
+  sources: string[] = []
+): Promise<ChatMessageRecord> {
+  return fetchJson<ChatMessageRecord>(`/api/chat/conversations/${convId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ sender, text, sources }),
+  });
+}
+
+export async function deleteChatConversation(convId: number): Promise<void> {
+  await fetchJson<{ deleted: boolean }>(`/api/chat/conversations/${convId}`, {
+    method: 'DELETE',
+  });
+}
