@@ -4,6 +4,8 @@ import os
 import logging
 from dotenv import load_dotenv
 
+from backend.services.news_scraper import scrape_esg_news
+
 load_dotenv()
 API_KEY = os.getenv("NEWS_API_KEY")
 
@@ -16,10 +18,10 @@ def fetch_esg_news(limit: int = 8) -> list[dict[str, Any]]:
     url = "https://newsapi.org/v2/everything"
 
     logger.debug(f"NEWS_API_KEY loaded: {bool(API_KEY)}")
-    
+
     if not API_KEY:
-        logger.error("NEWS_API_KEY is not set in environment variables")
-        return []
+        logger.warning("NEWS_API_KEY not set — falling back to web scraping")
+        return scrape_esg_news(limit)
 
     params = {
 "q": "\"ESG score\" OR \"ESG rating\" OR \"sustainable finance\" OR \"green bond\" OR \"carbon offset\"",
@@ -54,11 +56,14 @@ def fetch_esg_news(limit: int = 8) -> list[dict[str, Any]]:
             })
 
         logger.debug(f"Returning {len(news)} formatted news items")
+        if not news:
+            logger.warning("News API returned 0 articles — falling back to web scraping")
+            return scrape_esg_news(limit)
         return news
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"Request error fetching news: {e}")
-        return []
+        logger.error(f"Request error fetching news: {e} — falling back to web scraping")
+        return scrape_esg_news(limit)
     except Exception as e:
         logger.error(f"Erreur News API: {e}", exc_info=True)
-        return []
+        return scrape_esg_news(limit)

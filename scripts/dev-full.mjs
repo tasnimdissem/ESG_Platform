@@ -19,9 +19,9 @@ function pickBackendPython() {
   return 'python';
 }
 
-function start(command, args, label) {
+function start(command, args, label, cwd = rootDir) {
   const child = spawn(command, args, {
-    cwd: rootDir,
+    cwd: cwd,
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });
@@ -144,7 +144,7 @@ async function main() {
 
   children.push(start('npm', ['run', 'dev', '--', '--host'], 'frontend'));
   children.push(start(pickBackendPython(), ['-m', 'backend.app'], 'backend'));
-  children.push(start(pickBackendPython(), ['-m', 'RAG_SYSTEM.app'], 'rag-system'));
+  children.push(start(pickBackendPython(), ['app.py'], 'rag-system', path.join(rootDir, 'RAG_SYSTEM')));
 }
 
 main().catch((error) => {

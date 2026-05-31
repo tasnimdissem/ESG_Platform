@@ -137,13 +137,15 @@ export default function Prediction() {
 
   const getScoreColor = (value: number) => {
     if (value >= 80) return 'text-emerald-500';
-    if (value >= 50) return 'text-amber-500';
+    if (value >= 60) return 'text-blue-500';
+    if (value >= 40) return 'text-amber-500';
     return 'text-red-500';
   };
 
   const getScoreBg = (value: number) => {
     if (value >= 80) return 'from-emerald-400 to-emerald-600';
-    if (value >= 50) return 'from-amber-400 to-amber-600';
+    if (value >= 60) return 'from-blue-400 to-blue-600';
+    if (value >= 40) return 'from-amber-400 to-amber-600';
     return 'from-red-400 to-red-600';
   };
 
@@ -474,8 +476,33 @@ export default function Prediction() {
                   <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                     <p className="text-sm text-gray-600 font-medium">Interprétation :</p>
                     <p className={`text-lg font-bold mt-1 ${getScoreColor(score)}`}>
-                      {score >= 80 ? 'Excellente Performance' : score >= 50 ? 'Performance Moyenne' : 'Risque Élevé'}
+                      {score >= 80 ? 'Excellente Performance' : score >= 60 ? 'Bonne Performance' : score >= 40 ? 'Performance Moyenne' : 'Risque Élevé'}
                     </p>
+                  </div>
+
+                  {/* Échelle de score */}
+                  <div className="p-4 bg-white rounded-xl border border-gray-100">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Échelle de performance</p>
+                    <div className="relative h-4 rounded-full overflow-hidden flex">
+                      <div className="flex-1 bg-red-400" title="Risque Élevé : 0–40" />
+                      <div className="flex-1 bg-amber-400" title="Performance Moyenne : 40–60" />
+                      <div className="flex-1 bg-blue-400" title="Bonne Performance : 60–80" />
+                      <div className="flex-1 bg-emerald-400" title="Excellente Performance : 80–100" />
+                      {/* Curseur de position */}
+                      <div
+                        className="absolute top-0 h-full w-1 bg-gray-900 rounded-full shadow"
+                        style={{ left: `${Math.min(Math.max(score, 0), 100)}%`, transform: 'translateX(-50%)' }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-400 mt-1">
+                      <span>0</span><span>40</span><span>60</span><span>80</span><span>100</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1 mt-2 text-center text-xs font-medium">
+                      <span className="text-red-500">Risque Élevé</span>
+                      <span className="text-amber-500">Moyen</span>
+                      <span className="text-blue-500">Bon</span>
+                      <span className="text-emerald-500">Excellent</span>
+                    </div>
                   </div>
                   
                   <p className="text-xs text-gray-400">

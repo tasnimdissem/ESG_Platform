@@ -19,8 +19,9 @@ _EMBEDDER = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
 # Squared L2 distance threshold (IndexFlatL2 returns squared distances).
 # For normalized vectors: cosine_similarity = 1 - distance/2.
-# Threshold of 0.7 → cosine ≥ 0.65 (rejects off-topic chunks more aggressively).
-_SIMILARITY_THRESHOLD = 0.7
+# Threshold of 1.6 → cosine ≥ 0.2  (permissif — accepte les chunks faiblement liés
+# pour éviter les réponses vides ; le LLM filtre la non-pertinence via le system prompt).
+_SIMILARITY_THRESHOLD = 1.6
 
 # Keywords used ONLY to detect sector intent in a user query (French + English).
 _SECTOR_DETECT_KEYWORDS: Dict[str, List[str]] = {
@@ -67,13 +68,18 @@ _SECTOR_CHUNK_KEYWORDS: Dict[str, Dict[str, List[str]]] = {
             "totalenergies", "total energies", "shell", "exxon", "chevron",
             "petroleum", "oil-and-gas", "bp-", "energy-report",
         ],
-        # Used on PDF/article TEXT — multi-word energy-specific terms only.
-        # Do NOT use "scope 1/2" — those appear in all sustainability reports.
+        # Used on PDF/article TEXT — terms specific enough to energy sector reports.
+        # Single-word terms are safe here because this path is only reached for PDFs/articles,
+        # never for dataset rows (which use dataset_sector keywords instead).
         "pdf_text": [
             "oil and gas", "upstream oil", "lng terminal", "petroleum refin",
             "fossil fuel", "oil field", "gas exploration", "oil production",
             "oil reserve", "natural gas field", "offshore platform",
             "totalenergies", "total energies",
+            "renewable energy", "energy transition", "decarbonisation", "decarbonization",
+            "hydrocarbon", "refinery", "offshore wind", "net zero", "net-zero",
+            "carbon neutrality", "greenhouse gas", "carbon footprint",
+            "scope 1 emission", "scope 2 emission", "scope 3 emission",
         ],
     },
     "technology": {
@@ -242,7 +248,7 @@ class RagEngine:
 
         # PDFs and articles
         source_name = (item.get("source_name", "") or "").lower()
-        text_head = (item.get("text", "") or "").lower()[:1000]
+        text_head = (item.get("text", "") or "").lower()[:3000]
 
         filename_kws = sector_kw_groups.get("pdf_filename", [])
         if any(kw in source_name for kw in filename_kws):
@@ -263,6 +269,7 @@ class RagEngine:
         query: str,
         top_k: int = 5,
         sector_filter: Optional[str] = None,
+        prefer_pdf: bool = False,
     ) -> List[Dict[str, Any]]:
         _, index_path, meta_path = self._active_paths()
 
@@ -270,8 +277,14 @@ class RagEngine:
         metadata: List[Dict[str, str]] = json.loads(meta_path.read_text(encoding="utf-8"))
 
         q_vec = _EMBEDDER.encode([query], convert_to_numpy=True).astype("float32")
-        # Fetch more candidates when sector filtering is requested
-        fetch_k = min(top_k * 4, index.ntotal) if sector_filter else min(top_k, index.ntotal)
+        # Fetch a wider candidate pool to ensure PDFs and niche chunks are represented.
+        # Dataset rows are numerous and dominate a narrow pool; PDFs need a bigger sample.
+        if sector_filter and prefer_pdf:
+            fetch_k = min(top_k * 40, index.ntotal)
+        elif sector_filter or prefer_pdf:
+            fetch_k = min(top_k * 25, index.ntotal)
+        else:
+            fetch_k = min(top_k * 8, index.ntotal)
         distances, indices = index.search(q_vec, fetch_k)
 
         results: List[Dict[str, Any]] = []
@@ -296,10 +309,12 @@ class RagEngine:
                 r for r in results
                 if self._chunk_in_sector(r, chunk_kw_groups)
             ]
-            # CRITICAL: if sector was explicitly requested but no chunk belongs to it,
-            # return empty → triggers the "no relevant documents" fallback.
-            # Do NOT fall back to off-topic chunks — that causes hallucination.
-            results = sector_matched
+            # If sector-matched chunks exist, use them for precision.
+            # Otherwise fall back to the similarity-ranked results — a "no relevant documents"
+            # failure is worse than a cross-sector answer that the LLM can qualify.
+            if sector_matched:
+                results = sector_matched
+            # else: keep results as-is; the similarity gate in answer() handles quality.
 
         return results[:top_k]
 
@@ -347,10 +362,11 @@ class RagEngine:
         )
         return any(signal in normalized for signal in dataset_signals)
 
-    def answer(self, query: str, top_k: int = 5) -> Tuple[str, List[Dict[str, Any]]]:
-        # Detect sector hint from query for targeted retrieval
+    def answer(self, query: str, top_k: int = 8) -> Tuple[str, List[Dict[str, Any]]]:
+        # Detect sector hint and PDF preference before retrieval
         sector_hint = self._detect_sector(query)
-        retrieved = self.search(query=query, top_k=top_k, sector_filter=sector_hint)
+        prefer_pdf = self._prefers_pdf_context(query)
+        retrieved = self.search(query=query, top_k=top_k, sector_filter=sector_hint, prefer_pdf=prefer_pdf)
 
         # ── Similarity gate ────────────────────────────────────────────────────
         # Reject chunks that are too dissimilar to avoid hallucination on
@@ -361,7 +377,7 @@ class RagEngine:
             return (
                 "Je ne dispose pas de documents suffisamment pertinents sur ce sujet "
                 "dans ma base de connaissances. "
-                "Essayez de préciser le nom d'une entreprise, un secteur ou une année.",
+                "Essayez de préciser le nom d'une entreprise, un secteur ou une année de référence.",
                 [],
             )
 
@@ -380,7 +396,7 @@ class RagEngine:
         # Prepend exact database rows first so the LLM can cite verbatim numbers.
         exact_data = lookup_exact(query, top_k=top_k) if self._should_use_exact_dataset(query) else ""
         if exact_data:
-            exact_block = "=== EXACT DATA FROM DATABASE ===\n" + exact_data
+            exact_block = "=== DONNÉES EXACTES DE LA BASE DE DONNÉES ===\n" + exact_data
             context_lines.append(exact_block)
             current_chars += len(exact_block)
 
@@ -405,15 +421,17 @@ class RagEngine:
             )
         else:
             system_prompt = (
-                "You are a precise ESG data analyst. "
-                "Answer ONLY using information explicitly present in the provided context. "
-                "CRITICAL RULES:\n"
-                "1. If the context does not contain relevant information, respond: "
-                "'La base de connaissances ne contient pas de données pertinentes sur ce sujet.'\n"
-                "2. Do NOT speculate, infer, or generate information not present in the context.\n"
-                "3. Do NOT answer with data from a different sector or company than what was asked.\n"
-                "4. Do NOT reference internal markers, formats, or data structures.\n"
-                "5. If you cannot answer confidently from the context, say so clearly."
+                "You are a helpful ESG data analyst. "
+                "Answer using ONLY the information present in the provided context. "
+                "RULES:\n"
+                "1. If the context contains partial information, answer what IS available and clearly "
+                "state what is missing or not covered.\n"
+                "2. Do NOT speculate or invent data not present in the context.\n"
+                "3. If the context covers a different company or sector than asked, mention the "
+                "discrepancy but still summarise what the context does contain.\n"
+                "4. Do NOT expose internal chunk IDs, source markers, or data-format details.\n"
+                "5. Prefer concise, structured answers (bullet points or short paragraphs).\n"
+                "6. Always respond in the same language as the question."
             )
 
         prompt = (
@@ -457,10 +475,10 @@ class RagEngine:
                     {
                         "role": "system",
                         "content": (
-                            "You are a precise ESG data analyst. "
-                            "Answer ONLY from the context provided in the user message. "
-                            "Never speculate or use knowledge outside the context. "
-                            "If the context is insufficient, say so explicitly."
+                            "You are a helpful ESG data analyst. "
+                            "Answer using ONLY the context provided in the user message. "
+                            "If the context is partial, summarise what is available and note gaps. "
+                            "Never speculate. Always reply in the language of the question."
                         ),
                     },
                     {"role": "user", "content": prompt},
@@ -484,10 +502,10 @@ class RagEngine:
                     {
                         "role": "system",
                         "content": (
-                            "You are a precise ESG data analyst. "
-                            "Answer ONLY from the context provided in the user message. "
-                            "Never speculate or use knowledge outside the context. "
-                            "If the context is insufficient, say so explicitly."
+                            "You are a helpful ESG data analyst. "
+                            "Answer using ONLY the context provided in the user message. "
+                            "If the context is partial, summarise what is available and note gaps. "
+                            "Never speculate. Always reply in the language of the question."
                         ),
                     },
                     {"role": "user", "content": prompt},
@@ -531,19 +549,19 @@ class RagEngine:
         exact_data = lookup_exact(query, top_k=10) if self._should_use_exact_dataset(query) else ""
         if exact_data:
             lines = [
-                "⚠️ LLM unavailable — showing exact database results directly:",
+                "⚠️ LLM indisponible — affichage direct des résultats de la base de données :",
                 "",
                 exact_data,
             ]
             return "\n".join(lines)
 
         if not retrieved:
-            return "No relevant context was found in the index for this question."
+            return "Aucun contexte pertinent n'a été trouvé dans l'index pour cette question."
 
         lines = [
-            "Groq and OpenAI generation are currently unavailable (missing key, quota, or API error).",
-            "Below is a context-based fallback answer from retrieved chunks:",
-            f"Question: {query}",
+            "La génération via Groq et OpenAI est actuellement indisponible (clé manquante, quota dépassé ou erreur API).",
+            "Voici une réponse de secours basée sur les extraits récupérés :",
+            f"Question : {query}",
             "",
         ]
 
@@ -552,11 +570,11 @@ class RagEngine:
             if len(snippet) > 400:
                 snippet = snippet[:400].rstrip() + "..."
             lines.append(
-                f"- Source {item.get('source_name', 'unknown')} ({item.get('source_type', 'unknown')}): {snippet}"
+                f"- Source {item.get('source_name', 'unknown')} ({item.get('source_type', 'unknown')}) : {snippet}"
             )
 
         lines.append("")
         lines.append(
-            "Set GROQ_API_KEY and GROQ_MODEL, or configure OLLAMA_MODEL in .env to get synthesized answers."
+            "Configurez GROQ_API_KEY et GROQ_MODEL, ou OLLAMA_MODEL dans le fichier .env pour obtenir des réponses synthétisées."
         )
         return "\n".join(lines)

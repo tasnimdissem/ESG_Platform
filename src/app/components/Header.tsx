@@ -4,6 +4,7 @@ import { Bell, User, ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchNewsItems } from '../services/api';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { getRoleLabel } from '../utils/roles';
 
 type NewsItem = {
   id: number;
@@ -86,7 +87,7 @@ export function Header() {
             <Link to="/profile" className="flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-gray-50 transition-colors">
               <div className="text-right">
                 <p className="font-semibold text-sm">{user?.name}</p>
-                <p className="text-xs text-gray-500">{user?.role}</p>
+                <p className="text-xs text-gray-500">{getRoleLabel(user?.role)}</p>
               </div>
               <Avatar className="w-10 h-10">
                 <AvatarImage src={user?.avatar_url ?? undefined} alt={user?.name ?? 'Utilisateur'} />

@@ -5,19 +5,20 @@ import { useAuth } from '../contexts/AuthContext';
 export function Sidebar() {
   const { logout, user } = useAuth();
 
+  const isAdmin = user?.role === 'admin';
+
   const navItems = [
     { path: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
     { path: '/analytics', icon: LineChart, label: 'Analyses' },
     { path: '/profile', icon: User, label: 'Mon profil' },
-    { path: '/companies', icon: Users, label: 'Mes entreprises' },
     { path: '/prediction', icon: Calculator, label: 'ESG Studio' },
     { path: '/chatbot', icon: MessageSquare, label: 'ESGénie' },
     { path: '/recommendations', icon: Lightbulb, label: 'Recommandations' },
+    ...(isAdmin ? [
+      { path: '/companies', icon: Users, label: 'Entreprises' },
+      { path: '/admin', icon: ShieldAlert, label: 'Administration' },
+    ] : []),
   ];
-
-  if (user && user.role === 'admin') {
-    navItems.push({ path: '/admin', icon: ShieldAlert, label: 'Administration' });
-  }
 
   return (
     <div className="w-64 bg-gradient-to-b from-emerald-900 to-emerald-950 text-white flex flex-col h-screen sticky top-0">
@@ -27,8 +28,8 @@ export function Sidebar() {
             <Leaf className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="font-bold text-xl">ESG Predictor</h1>
-            <p className="text-xs text-emerald-300">Plateforme d’intelligence</p>
+            <h1 className="font-bold text-xl">Plateforme ESG</h1>
+            <p className="text-xs text-emerald-300">Intelligence & Prédiction</p>
           </div>
         </div>
       </div>

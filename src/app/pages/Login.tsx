@@ -18,8 +18,8 @@ export default function Login() {
     try {
       await login(email, password);
       navigate('/');
-    } catch {
-      setErrorMessage('Connexion échouée. Vérifiez votre e-mail et votre mot de passe.');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Connexion échouée. Vérifiez votre e-mail et votre mot de passe.');
     } finally {
       setIsLoading(false);
     }
@@ -34,8 +34,8 @@ export default function Login() {
               <Leaf className="w-10 h-10" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold">ESG Predictor</h1>
-              <p className="text-emerald-200">Plateforme d’intelligence ESG</p>
+              <h1 className="text-4xl font-bold">Plateforme ESG</h1>
+              <p className="text-emerald-200">Intelligence & Prédiction ESG</p>
             </div>
           </div>
 

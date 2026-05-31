@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 from backend.extensions import db
 from backend.models.company import Company
+from backend.models.user import User
 
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,17 @@ def ensure_company_schema() -> None:
         db.session.execute(text(statement))
     if statements:
         db.session.commit()
+
+
+def _is_admin() -> bool:
+    identity = get_jwt_identity()
+    if identity in (None, ''):
+        return False
+    try:
+        user = db.session.get(User, int(identity))
+        return user is not None and user.role == 'admin'
+    except (TypeError, ValueError):
+        return False
 
 
 def _current_user_id() -> int | None:
@@ -89,6 +101,8 @@ def _build_history_entry(payload: dict[str, Any]) -> tuple[dict[str, Any] | None
 @companies_bp.get('/companies')
 @jwt_required()
 def list_companies() -> object:
+    if not _is_admin():
+        return jsonify({'error': 'Accès refusé. Les informations des entreprises sont réservées aux administrateurs.'}), 403
     ensure_company_schema()
     companies = Company.query.order_by(Company.updated_at.desc(), Company.created_at.desc()).all()
     return jsonify([company.to_dict() for company in companies]), 200
@@ -164,6 +178,8 @@ def create_company() -> object:
 @companies_bp.get('/companies/<string:company_id>')
 @jwt_required()
 def get_company(company_id: str) -> object:
+    if not _is_admin():
+        return jsonify({'error': 'Accès refusé. Les informations des entreprises sont réservées aux administrateurs.'}), 403
     ensure_company_schema()
     try:
         company = db.session.get(Company, int(company_id))
@@ -177,6 +193,8 @@ def get_company(company_id: str) -> object:
 @companies_bp.post('/companies/<string:company_id>/history')
 @jwt_required()
 def add_company_history(company_id: str) -> object:
+    if not _is_admin():
+        return jsonify({'error': 'Accès refusé. Les informations des entreprises sont réservées aux administrateurs.'}), 403
     ensure_company_schema()
     payload, error = _get_json_payload()
     if error is not None:
@@ -201,6 +219,8 @@ def add_company_history(company_id: str) -> object:
 @companies_bp.put('/companies/<string:company_id>')
 @jwt_required()
 def update_company(company_id: str) -> object:
+    if not _is_admin():
+        return jsonify({'error': 'Accès refusé. Les informations des entreprises sont réservées aux administrateurs.'}), 403
     ensure_company_schema()
     payload, error = _get_json_payload()
     if error is not None:
@@ -235,6 +255,8 @@ def update_company(company_id: str) -> object:
 @companies_bp.delete('/companies/<string:company_id>')
 @jwt_required()
 def delete_company(company_id: str) -> object:
+    if not _is_admin():
+        return jsonify({'error': 'Accès refusé. Les informations des entreprises sont réservées aux administrateurs.'}), 403
     ensure_company_schema()
     try:
         company = db.session.get(Company, int(company_id))

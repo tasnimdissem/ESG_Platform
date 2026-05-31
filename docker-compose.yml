@@ -57,8 +57,7 @@ services:
     environment:
       - RAG_API_BASE_URL=http://rag:8000
     volumes:
-      - rag_data:/app/RAG_SYSTEM/data
-      - rag_storage:/app/RAG_SYSTEM/storage
+      - ./RAG_SYSTEM:/app/RAG_SYSTEM
     ports:
       - "8000:8000"
     networks:
@@ -77,6 +76,9 @@ services:
       - DATABASE_URL=postgresql://esg_user:esg_password@postgres:5432/esg_db
       - RAG_API_BASE_URL=http://rag:8000
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - ADMIN_NAME=${ADMIN_NAME:-Administrateur}
     depends_on:
       rag:
         condition: service_started
@@ -103,8 +105,6 @@ services:
 
 volumes:
   postgres_data:
-  rag_data:
-  rag_storage:
   postfix_queue:
   postfix_logs:
 

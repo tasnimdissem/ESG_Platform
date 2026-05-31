@@ -1,4 +1,5 @@
 import logging
+from contextlib import contextmanager
 from logging.config import fileConfig
 
 from flask import current_app
@@ -15,29 +16,42 @@ fileConfig(config.config_file_name)
 logger = logging.getLogger('alembic.env')
 
 
-def get_engine():
+def _get_flask_app():
     try:
-        # this works with Flask-SQLAlchemy<3 and Alchemical
-        return current_app.extensions['migrate'].db.get_engine()
-    except (TypeError, AttributeError):
-        # this works with Flask-SQLAlchemy>=3
-        return current_app.extensions['migrate'].db.engine
+        return current_app._get_current_object()
+    except RuntimeError:
+        from backend.app import app as flask_app
+
+        return flask_app
+
+
+def get_engine():
+    flask_app = _get_flask_app()
+    with flask_app.app_context():
+        try:
+            # this works with Flask-SQLAlchemy<3 and Alchemical
+            return current_app.extensions['migrate'].db.get_engine()
+        except (TypeError, AttributeError):
+            # this works with Flask-SQLAlchemy>=3
+            return current_app.extensions['migrate'].db.engine
 
 
 def get_engine_url():
+    engine = get_engine()
     try:
-        return get_engine().url.render_as_string(hide_password=False).replace(
-            '%', '%%')
+        return engine.url.render_as_string(hide_password=False).replace('%', '%%')
     except AttributeError:
-        return str(get_engine().url).replace('%', '%%')
+        return str(engine.url).replace('%', '%%')
 
 
 # add your model's MetaData object here
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-config.set_main_option('sqlalchemy.url', get_engine_url())
-target_db = current_app.extensions['migrate'].db
+flask_app = _get_flask_app()
+with flask_app.app_context():
+    config.set_main_option('sqlalchemy.url', get_engine_url())
+    target_db = current_app.extensions['migrate'].db
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -107,7 +121,8 @@ def run_migrations_online():
             context.run_migrations()
 
 
-if context.is_offline_mode():
-    run_migrations_offline()
-else:
-    run_migrations_online()
+with flask_app.app_context():
+    if context.is_offline_mode():
+        run_migrations_offline()
+    else:
+        run_migrations_online()

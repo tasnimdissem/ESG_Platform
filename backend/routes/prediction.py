@@ -10,6 +10,63 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 logger = logging.getLogger(__name__)
 
+_FR_LABELS: dict[str, str] = {
+    'primary_industry': "Secteur d'activité",
+    'log_market_cap': "Valeur boursière de l'entreprise",
+    'log_employees': "Nombre total d'employés",
+    'log_revenue_wins': "Chiffre d'affaires annuel",
+    'log_scope_1': "Émissions CO₂ directes (usines, véhicules)",
+    'log_scope_2': "Émissions CO₂ de l'électricité achetée",
+    'log_scope_3': "Émissions CO₂ chaîne d'approvisionnement",
+    'log_energy_consumption': "Consommation d'énergie totale",
+    'log_waste_production': "Déchets produits",
+    'log_water_consumption': "Eau consommée",
+    'log_hours_of_training_wins': "Heures de formation des employés",
+    'log_ceo_compensation': "Rémunération annuelle du PDG",
+    'independent_board_members_percentage': "% d'administrateurs indépendants",
+    'log_legal_costs_paid_for_controversies': "Montant des litiges et amendes",
+    'intensity_scope_1': "Ratio CO₂ direct / chiffre d'affaires",
+    'intensity_scope_2': "Ratio CO₂ électricité / chiffre d'affaires",
+    'intensity_scope_3': "Ratio CO₂ chaîne / chiffre d'affaires",
+    'intensity_energy': "Ratio énergie / chiffre d'affaires",
+    'intensity_waste': "Ratio déchets / chiffre d'affaires",
+    'intensity_water': "Ratio eau / chiffre d'affaires",
+    'intensity_training': "Heures de formation par employé",
+    'intensity_productivity': "Chiffre d'affaires par employé",
+    'revenue_negative_flag': "Revenus en baisse cette année",
+}
+
+def _translate_error(err: dict) -> str:
+    """Traduit un objet erreur Pydantic v2 en message français lisible.
+    Utilise le champ `type` (fiable) plutôt que le texte anglais."""
+    error_type = err.get("type", "")
+    ctx = err.get("ctx", {}) or {}
+
+    if error_type == "greater_than_equal":
+        limit = ctx.get("ge", ctx.get("limit_value", 0))
+        return f"La valeur doit être supérieure ou égale à {limit}"
+    if error_type == "less_than_equal":
+        limit = ctx.get("le", ctx.get("limit_value", 100))
+        return f"La valeur doit être inférieure ou égale à {limit}"
+    if error_type == "greater_than":
+        limit = ctx.get("gt", ctx.get("limit_value", 0))
+        return f"La valeur doit être strictement supérieure à {limit}"
+    if error_type == "less_than":
+        limit = ctx.get("lt", ctx.get("limit_value", 100))
+        return f"La valeur doit être strictement inférieure à {limit}"
+    if error_type in ("float_parsing", "int_parsing", "float_type", "int_type"):
+        return "Veuillez saisir un nombre valide"
+    if error_type == "missing":
+        return "Ce champ est obligatoire"
+    if error_type == "value_error":
+        raw = err.get("msg", "")
+        if "At least one prediction feature" in raw:
+            return "Veuillez renseigner au moins une variable de prédiction"
+        return raw
+    # Fallback : retourner le message brut sans le préfixe anglais "Value error, "
+    return err.get("msg", "Erreur de validation")
+
+
 # Create a Blueprint for the prediction routes
 prediction_bp = Blueprint('prediction', __name__)
 
@@ -33,7 +90,7 @@ def predict():
             validated_data = PredictRequest(**data)
         except ValidationError as ve:
             logger.warning(f"Validation error in predict: {ve}")
-            errors = [{"field": err["loc"][0], "message": err["msg"]} for err in ve.errors()]
+            errors = [{"field": _FR_LABELS.get(str(err["loc"][0]), str(err["loc"][0])), "message": _translate_error(err)} for err in ve.errors()]
             return jsonify({"error": "Données d'entrée invalides", "details": errors}), 400
         
         logger.info(f"Predict request validated successfully")

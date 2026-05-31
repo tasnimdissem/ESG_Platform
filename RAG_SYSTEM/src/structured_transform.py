@@ -107,22 +107,22 @@ def _rewrite_with_ai(text: str, category: str, numbers: List[str]) -> Dict[str, 
     try:
         client = OpenAI(api_key=config.OPENAI_API_KEY)
         prompt = (
-            "You are transforming ESG source text into structured dataset rows. "
-            "Return only valid JSON with the exact keys: category, key_insights, numerical_indicators, rewritten_text. "
-            "category must be one of Environmental, Social, Governance. "
-            "Keep numerical values exactly as they appear when relevant. "
-            "Rewrite the text clearly and concisely for dataset use. "
-            "If the category seems uncertain, use the provided category.\n\n"
-            f"Provided category: {category}\n"
-            f"Detected numbers: {numbers}\n"
-            f"Text: {text}"
+            "Tu es un expert ESG qui transforme des textes sources en lignes de dataset structurées. "
+            "Réponds uniquement avec du JSON valide avec exactement ces clés : category, key_insights, numerical_indicators, rewritten_text. "
+            "category doit être l'une de ces valeurs : Environmental, Social, Governance. "
+            "Conserve les valeurs numériques exactement telles qu'elles apparaissent. "
+            "Réécris le texte clairement et de façon concise en français. "
+            "En cas de doute sur la catégorie, utilise la catégorie fournie.\n\n"
+            f"Catégorie fournie : {category}\n"
+            f"Nombres détectés : {numbers}\n"
+            f"Texte : {text}"
         )
-        response = client.responses.create(
+        response = client.chat.completions.create(
             model=config.OPENAI_MODEL,
-            input=prompt,
+            messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
         )
-        content = (response.output_text or "").strip()
+        content = (response.choices[0].message.content or "").strip()
     except Exception:
         _OPENAI_DISABLED = True
         return fallback

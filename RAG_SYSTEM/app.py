@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Guarantee that RAG_SYSTEM/ is on sys.path so `from src import ...` always resolves
+# to RAG_SYSTEM/src/ — not to ESG_Platform/src/ (the React frontend) when this file
+# is invoked as `python -m RAG_SYSTEM.app` from the project root.
+_THIS_DIR = Path(__file__).resolve().parent
+if str(_THIS_DIR) not in sys.path:
+    sys.path.insert(0, str(_THIS_DIR))
+
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
@@ -150,30 +160,37 @@ def _build_recommendations(
 
     structured = transform_chunks(retrieved)
     recommendations: List[Dict[str, Any]] = []
-    company_name = (signals or {}).get("company") or "Organization"
+    company_name = (signals or {}).get("company") or "Organisation"
+
+    _pillar_labels = {
+        "Environmental": "Environnementale",
+        "Social": "Sociale",
+        "Governance": "Gouvernance",
+    }
 
     for idx, row in enumerate(structured[:5], start=1):
         pillar = row.get("category", "Environmental")
+        pillar_fr = _pillar_labels.get(pillar, pillar)
         insight_list = row.get("key_insights") or []
         first_insight = (
             insight_list[0]
             if isinstance(insight_list, list) and insight_list
-            else "No explicit insight available"
+            else "Aucune information explicite disponible"
         )
         source_name = row.get("source_name", "unknown")
         source_type = row.get("source_type", "unknown")
 
         if pillar == "Environmental":
             effort = "medium"
-            timeline = "3-6 months"
+            timeline = "3-6 mois"
             impact = "high"
         elif pillar == "Social":
             effort = "medium"
-            timeline = "2-4 months"
+            timeline = "2-4 mois"
             impact = "medium"
         else:
             effort = "low"
-            timeline = "1-3 months"
+            timeline = "1-3 mois"
             impact = "medium"
 
         priority = min(5, max(1, 6 - idx))
@@ -182,15 +199,15 @@ def _build_recommendations(
         recommendations.append(
             {
                 "id": rec_id,
-                "title": f"{pillar} improvement initiative #{idx}",
+                "title": f"Initiative d'amélioration {pillar_fr} n°{idx}",
                 "pillar": pillar,
                 "impact": impact,
                 "effort": effort,
                 "timeline": timeline,
                 "priority": priority,
                 "justification": (
-                    f"For {company_name}, the retrieved evidence indicates: {first_insight} "
-                    f"(question: {question})."
+                    f"Pour {company_name}, les données récupérées indiquent : {first_insight} "
+                    f"(question : {question})."
                 ),
                 "sources": [
                     {
@@ -324,7 +341,7 @@ def api_transform() -> tuple:
 def ask() -> tuple:
     payload = request.get_json(silent=True) or {}
     question = (payload.get("question") or "").strip()
-    top_k = _safe_int(payload.get("top_k", 5), default=5)
+    top_k = _safe_int(payload.get("top_k", 8), default=8)
 
     if not question:
         return _json_error("question is required", 400)
@@ -362,7 +379,7 @@ def api_query() -> tuple:
 
     payload = request.get_json(silent=True) or {}
     question = (payload.get("question") or payload.get("message") or "").strip()
-    top_k = _safe_int(payload.get("top_k", 5), default=5)
+    top_k = _safe_int(payload.get("top_k", 8), default=8)
 
     if not question:
         return _json_error("question or message is required", 400)
@@ -426,7 +443,7 @@ def api_recommendations() -> tuple:
 
     payload = request.get_json(silent=True) or {}
     question = (payload.get("question") or payload.get("message") or "").strip()
-    top_k = _safe_int(payload.get("top_k", 5), default=5)
+    top_k = _safe_int(payload.get("top_k", 8), default=8)
     signals = payload.get("signals") or {}
     filters = payload.get("filters") or {}
 
@@ -475,7 +492,7 @@ def api_integration() -> tuple:
 
     payload = request.get_json(silent=True) or {}
     question = (payload.get("question") or payload.get("message") or "").strip()
-    top_k = _safe_int(payload.get("top_k", 5), default=5)
+    top_k = _safe_int(payload.get("top_k", 8), default=8)
     include_recommendations = _wants_recommendations(
         payload.get("include_recommendations", True)
     )
@@ -644,7 +661,20 @@ def api_docs() -> tuple:
         ),
         200,
     )
+def _auto_ingest_if_missing() -> None:
+    status = rag.health()
+    if not status.get("available"):
+        print("Auto-ingesting documents because FAISS index is missing...", flush=True)
+        def _run_auto():
+            try:
+                chunks = ingest_sources()
+                rag.build_index(chunks)
+                print("Auto-ingestion complete.", flush=True)
+            except Exception as e:
+                print(f"Auto-ingestion failed: {e}", flush=True)
+        ingestion_executor.submit(_run_auto)
 
+_auto_ingest_if_missing()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)

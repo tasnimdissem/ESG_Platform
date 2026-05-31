@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldAlert, Trash2, ShieldCheck, UserCheck, Users, Search } from 'lucide-react';
+import { ShieldAlert, Trash2, ShieldCheck, UserCheck, Users, Search, Ban, CheckCircle, MailCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router';
+import { getNextAdminRole, getRoleLabel } from '../utils/roles';
 
 type User = {
   id: number;
   name: string;
   email: string;
   role: string;
+  is_blocked: boolean;
+  is_approved: boolean;
+  is_verified: boolean;
   created_at: string;
 };
 
@@ -21,7 +25,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     // Redirection si non admin
-      if (user && user.role !== 'admin') {
+    if (user && user.role !== 'admin') {
       navigate('/');
       return;
     }
@@ -61,9 +65,29 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleToggleBlock = async (id: number, currentlyBlocked: boolean) => {
+    const action = currentlyBlocked ? 'débloquer' : 'bloquer';
+    if (!window.confirm(`Voulez-vous vraiment ${action} cet utilisateur ?`)) return;
+
+    try {
+      const res = await fetch(`/api/admin/users/${id}/block`, {
+        method: 'PUT',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Erreur lors de la modification');
+      }
+      const data = await res.json();
+      setUsers(users.map(u => u.id === id ? { ...u, is_blocked: data.user.is_blocked } : u));
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   const handleToggleRole = async (id: number, currentRole: string) => {
-    const newRole = currentRole === 'admin' ? 'user' : 'admin';
-    if (!window.confirm(`Voulez-vous vraiment changer le rôle de cet utilisateur en ${newRole} ?`)) return;
+    const newRole = getNextAdminRole(currentRole);
+    if (!window.confirm(`Voulez-vous vraiment changer le rôle de cet utilisateur en ${getRoleLabel(newRole)} ?`)) return;
 
     try {
       const res = await fetch(`/api/admin/users/${id}/role`, {
@@ -77,6 +101,26 @@ export default function AdminDashboard() {
         throw new Error(errorData.error || 'Erreur lors de la modification');
       }
       setUsers(users.map(u => u.id === id ? { ...u, role: newRole } : u));
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleApproveUser = async (id: number) => {
+    if (!window.confirm('Voulez-vous valider ce compte et envoyer l’e-mail d’activation ?')) return;
+
+    try {
+      const res = await fetch(`/api/admin/users/${id}/approve`, {
+        method: 'PUT',
+        credentials: 'include',
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erreur lors de la validation');
+      }
+
+      setUsers(users.map(u => u.id === id ? { ...u, is_approved: data.user.is_approved, is_verified: data.user.is_verified } : u));
     } catch (err: any) {
       alert(err.message);
     }
@@ -147,6 +191,7 @@ export default function AdminDashboard() {
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Utilisateur</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Email</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Rôle</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Statut</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date d'inscription</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
@@ -162,37 +207,90 @@ export default function AdminDashboard() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      u.role === 'admin' 
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                      u.role === 'admin'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                         : 'bg-gray-100 text-gray-800 border border-gray-200'
                     }`}>
-                      {u.role === 'admin' ? 'Administrateur' : 'Utilisateur'}
+                      {getRoleLabel(u.role)}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex flex-col gap-1">
+                      {u.is_blocked ? (
+                        <span className="px-2 py-0.5 inline-flex items-center gap-1 text-xs font-semibold rounded-full bg-red-100 text-red-700 border border-red-200">
+                          <Ban className="w-3 h-3" /> Bloqué
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 inline-flex items-center gap-1 text-xs font-semibold rounded-full bg-green-100 text-green-700 border border-green-200">
+                          <CheckCircle className="w-3 h-3" /> Actif
+                        </span>
+                      )}
+                      {!u.is_approved && (
+                        <span className="px-2 py-0.5 inline-flex items-center gap-1 text-xs font-semibold rounded-full bg-sky-100 text-sky-700 border border-sky-200">
+                          <MailCheck className="w-3 h-3" /> En attente admin
+                        </span>
+                      )}
+                      {u.is_approved && !u.is_verified && (
+                        <span className="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                          En attente
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(u.created_at).toLocaleDateString('fr-FR')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end gap-3">
+                      {!u.is_approved && (
+                        <button
+                          onClick={() => handleApproveUser(u.id)}
+                          disabled={user?.id === u.id}
+                          className={`p-2 rounded-lg transition-colors ${
+                            user?.id === u.id
+                              ? 'opacity-30 cursor-not-allowed'
+                              : 'hover:bg-sky-50 text-sky-600 hover:text-sky-700'
+                          }`}
+                          title="Valider et envoyer l’e-mail d’activation"
+                        >
+                          <MailCheck className="w-5 h-5" />
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleToggleBlock(u.id, u.is_blocked)}
+                        disabled={user?.id === u.id}
+                        className={`p-2 rounded-lg transition-colors ${
+                          user?.id === u.id
+                            ? 'opacity-30 cursor-not-allowed'
+                            : u.is_blocked
+                              ? 'hover:bg-green-50 text-red-500 hover:text-green-600'
+                              : 'hover:bg-red-50 text-gray-400 hover:text-red-500'
+                        }`}
+                        title={u.is_blocked ? 'Débloquer le compte' : 'Bloquer le compte'}
+                      >
+                        <Ban className="w-5 h-5" />
+                      </button>
+
                       <button
                         onClick={() => handleToggleRole(u.id, u.role)}
                         disabled={user?.id === u.id}
                         className={`p-2 rounded-lg transition-colors ${
-                          user?.id === u.id 
-                            ? 'opacity-30 cursor-not-allowed' 
+                          user?.id === u.id
+                            ? 'opacity-30 cursor-not-allowed'
                             : 'hover:bg-gray-100 text-gray-600 hover:text-emerald-600'
                         }`}
-                        title={u.role === 'admin' ? "Rétrograder en utilisateur" : "Promouvoir Administrateur"}
+                        title={u.role === 'admin' ? 'Rétrograder vers un profil métier' : 'Changer de profil'}
                       >
                         {u.role === 'admin' ? <UserCheck className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
                       </button>
-                      
+
                       <button
                         onClick={() => handleDelete(u.id)}
                         disabled={user?.id === u.id}
                         className={`p-2 rounded-lg transition-colors ${
-                          user?.id === u.id 
-                            ? 'opacity-30 cursor-not-allowed' 
+                          user?.id === u.id
+                            ? 'opacity-30 cursor-not-allowed'
                             : 'hover:bg-red-50 text-gray-400 hover:text-red-600'
                         }`}
                         title="Supprimer le compte"
@@ -206,7 +304,7 @@ export default function AdminDashboard() {
               
               {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     Aucun utilisateur trouvé.
                   </td>
                 </tr>

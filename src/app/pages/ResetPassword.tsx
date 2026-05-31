@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router';
 import { Lock, ArrowRight } from 'lucide-react';
+
+const RESET_TOKEN_STORAGE_KEY = 'reset-password-token';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -11,14 +13,21 @@ export default function ResetPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const tokenCapturedRef = useRef(false);
 
   useEffect(() => {
     const tokenFromUrl = searchParams.get('token') ?? '';
-    setToken(tokenFromUrl);
-
-    // Remove token from URL once captured to avoid exposing it on screen/history.
     if (tokenFromUrl) {
+      tokenCapturedRef.current = true;
+      sessionStorage.setItem(RESET_TOKEN_STORAGE_KEY, tokenFromUrl);
+      setToken(tokenFromUrl);
       navigate('/reset-password', { replace: true });
+      return;
+    }
+
+    const storedToken = sessionStorage.getItem(RESET_TOKEN_STORAGE_KEY) ?? '';
+    if (!tokenCapturedRef.current && storedToken) {
+      setToken(storedToken);
     }
   }, [navigate, searchParams]);
 
@@ -55,6 +64,7 @@ export default function ResetPassword() {
       }
 
       setSuccessMessage(data.message ?? 'Mot de passe réinitialisé avec succès');
+      sessionStorage.removeItem(RESET_TOKEN_STORAGE_KEY);
       setTimeout(() => navigate('/login'), 1200);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Impossible de réinitialiser le mot de passe.');

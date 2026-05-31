@@ -18,9 +18,9 @@ from pydantic import ValidationError
 from sqlalchemy import inspect, text
 
 from backend.extensions import db, limiter
-from backend.models.user import PasswordResetToken, User
+from backend.models.user import EmailVerificationToken, PasswordResetToken, User
 from backend.services.avatar_service import delete_user_avatar, upload_user_avatar
-from backend.services.email_service import send_password_reset_email
+from backend.services.email_service import send_account_activation_email, send_password_reset_email
 from backend.schemas import LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest, UpdateProfileRequest
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,12 @@ def ensure_user_schema() -> None:
         statements.append('ALTER TABLE users ADD COLUMN avatar_url VARCHAR(512)')
     if 'avatar_s3_key' not in columns:
         statements.append('ALTER TABLE users ADD COLUMN avatar_s3_key VARCHAR(255)')
+    if 'is_blocked' not in columns:
+        statements.append('ALTER TABLE users ADD COLUMN is_blocked BOOLEAN NOT NULL DEFAULT FALSE')
+    if 'is_approved' not in columns:
+        statements.append('ALTER TABLE users ADD COLUMN is_approved BOOLEAN NOT NULL DEFAULT FALSE')
+    if 'is_verified' not in columns:
+        statements.append('ALTER TABLE users ADD COLUMN is_verified BOOLEAN NOT NULL DEFAULT FALSE')
 
     for statement in statements:
         db.session.execute(text(statement))
@@ -60,6 +66,8 @@ def _get_json_payload() -> tuple[dict | None, tuple[object, int] | None]:
 @auth_bp.post('/register')
 @limiter.limit("3 per minute")  # FIXED: Prevent registration spam (3 attempts per minute per IP)
 def register() -> object:
+    ensure_user_schema()
+
     payload, error = _get_json_payload()
     if error is not None:
         return error
@@ -75,36 +83,28 @@ def register() -> object:
     name = validated_data.name.strip()
     email = validated_data.email.strip().lower()
     password = validated_data.password
-    # Security: never trust client-provided role during self-registration.
-    role = 'user'
+    role = 'metier' if validated_data.role == 'user' else validated_data.role
 
     if User.query.filter_by(email=email).first() is not None:
         return jsonify({'error': 'Cet e-mail existe déjà'}), 409
 
-    user = User(name=name, email=email, role=role)
+    user = User(name=name, email=email, role=role, is_approved=False, is_verified=False)
     user.set_password(password)
 
     db.session.add(user)
     db.session.commit()
 
-    access_token = create_access_token(identity=str(user.id))
-    
-    # Return only user info; token is set in secure HttpOnly cookie
-    response = jsonify({'message': 'Inscription réussie', 'user': user.to_dict()})
-    set_access_cookies(response, access_token)
-    return response, 201
+    return jsonify({
+        'message': 'Inscription réussie. Le compte est en attente de validation par un administrateur.',
+        'needs_approval': True,
+        'user': user.to_dict(),
+    }), 201
 
 
 @auth_bp.post('/login')
 @limiter.limit("5 per minute")  # FIXED: Prevent brute-force attacks (5 attempts per minute per IP)
 def login() -> object:
     try:
-        # Ensure tables exist (in case DB became available after startup)
-        try:
-            db.create_all()
-        except Exception:
-            pass  # Log will happen at startup; don't fail the request
-        
         payload, error = _get_json_payload()
         if error is not None:
             return error
@@ -127,6 +127,18 @@ def login() -> object:
             logger.warning(f"Connexion échouée : identifiants invalides pour {email}")
             return jsonify({'error': 'Identifiants invalides'}), 401
 
+        if user.is_blocked:
+            logger.warning(f"Tentative de connexion d'un compte suspendu : {email}")
+            return jsonify({'error': 'Votre compte a été suspendu. Contactez un administrateur.'}), 403
+
+        if not user.is_approved:
+            logger.warning(f"Tentative de connexion d'un compte en attente de validation : {email}")
+            return jsonify({'error': 'Votre compte est en attente de validation par un administrateur.', 'needs_approval': True}), 403
+
+        if not user.is_verified:
+            logger.warning(f"Tentative de connexion d'un compte non vérifié : {email}")
+            return jsonify({'error': 'Veuillez activer votre compte via le lien envoyé à votre adresse e-mail.', 'needs_verification': True}), 403
+
         access_token = create_access_token(identity=str(user.id))
         logger.info(f"Connexion réussie pour l'utilisateur : {user.id} ({email})")
         
@@ -143,6 +155,8 @@ def login() -> object:
 @auth_bp.get('/me')
 @jwt_required(optional=True)
 def me() -> object:
+    ensure_user_schema()
+
     identity = get_jwt_identity()
     if identity is None:
         return jsonify({'user': None})
@@ -325,5 +339,41 @@ def reset_password() -> object:
     db.session.commit()
 
     return jsonify({'message': 'Mot de passe réinitialisé avec succès'})
+
+
+@auth_bp.get('/verify-email')
+def verify_email() -> object:
+    ensure_user_schema()
+
+    try:
+        db.create_all()
+    except Exception:
+        pass
+
+    token = request.args.get('token', '').strip()
+    if not token:
+        return jsonify({'error': 'Jeton manquant'}), 400
+
+    token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    verification_token = EmailVerificationToken.query.filter_by(token_hash=token_hash).first()
+
+    if verification_token is None:
+        return jsonify({'error': 'Lien d\'activation invalide ou expiré'}), 400
+
+    if verification_token.used_at is not None or verification_token.expires_at < datetime.utcnow():
+        return jsonify({'error': 'Lien d\'activation invalide ou expiré'}), 400
+
+    user = db.session.get(User, verification_token.user_id)
+    if user is None:
+        return jsonify({'error': 'Utilisateur introuvable'}), 404
+
+    user.is_verified = True
+    verification_token.used_at = datetime.utcnow()
+    db.session.commit()
+
+    access_token = create_access_token(identity=str(user.id))
+    response = jsonify({'message': 'Compte activé avec succès. Vous êtes maintenant connecté.', 'user': user.to_dict()})
+    set_access_cookies(response, access_token)
+    return response
 
 

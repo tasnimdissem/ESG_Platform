@@ -1,21 +1,22 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
-import { useAuth } from '../contexts/AuthContext';
+import { Link } from 'react-router';
+import { REGISTER_ROLE_OPTIONS } from '../utils/roles';
 import { Leaf, Mail, Lock, User, ArrowRight } from 'lucide-react';
 
 export default function Register() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState<'metier' | 'decideur'>('metier');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const { login } = useAuth();
-  const navigate = useNavigate();
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMessage(null);
+    setSuccessMessage(null);
 
     try {
       const response = await fetch('/api/auth/register', {
@@ -23,7 +24,7 @@ export default function Register() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, email, password, role: 'user' }),
+        body: JSON.stringify({ name, email, password, role }),
       });
 
       if (!response.ok) {
@@ -40,8 +41,13 @@ export default function Register() {
         throw new Error(message);
       }
 
-      await login(email, password);
-      navigate('/');
+      const data = await response.json() as { needs_approval?: boolean; needs_verification?: boolean; message?: string };
+      setSuccessMessage(
+        data.message ??
+          (data.needs_approval
+            ? 'Compte créé. Il sera activé après validation par un administrateur.'
+            : 'Compte créé. Vérifiez votre e-mail pour l’activer.'),
+      );
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Impossible de créer le compte.');
     } finally {
@@ -78,6 +84,12 @@ export default function Register() {
               </div>
             )}
 
+            {successMessage && (
+              <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg p-3 text-sm">
+                {successMessage}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Nom</label>
               <div className="relative">
@@ -91,6 +103,21 @@ export default function Register() {
                   required
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Profil métier</label>
+              <select
+                value={role}
+                onChange={(event) => setRole(event.target.value as 'metier' | 'decideur')}
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                {REGISTER_ROLE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

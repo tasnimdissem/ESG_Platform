@@ -13,7 +13,6 @@ from werkzeug.exceptions import HTTPException
 
 from backend.config import Config
 from backend.extensions import bcrypt, db, jwt, limiter
-from flask_migrate import Migrate
 from backend.routes.api import api_bp
 from backend.routes.companies import companies_bp
 from backend.routes.analytics import analytics_bp
@@ -23,6 +22,11 @@ from backend.routes.admin import admin_bp
 from backend.routes.voice import voice_bp
 from backend.routes.chat import chat_bp
 from flask_cors import CORS  # FIXED: Importer CORS
+
+try:
+    from flask_migrate import Migrate
+except ModuleNotFoundError:
+    Migrate = None
 
 # Configure logging for debugging errors
 logging.basicConfig(
@@ -50,7 +54,10 @@ def create_app() -> Flask:
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', app.config.get('SECRET_KEY'))
 
     db.init_app(app)
-    Migrate(app, db)
+    if Migrate is not None:
+        Migrate(app, db)
+    else:
+        logging.getLogger(__name__).warning('Flask-Migrate is not installed; starting without migration integration')
     bcrypt.init_app(app)
     jwt.init_app(app)
     limiter.init_app(app)
@@ -96,7 +103,31 @@ def create_app() -> Flask:
                 ensure_company_schema()
                 ensure_user_schema()
                 logger.info('Database schema initialized successfully')
-                # Demo user seeding removed; PostgreSQL environment should handle user creation via migrations or admin tools
+                # Seed initial admin user from ADMIN_EMAIL / ADMIN_PASSWORD env vars
+                admin_email = os.getenv('ADMIN_EMAIL', '').strip().lower()
+                admin_password = os.getenv('ADMIN_PASSWORD', '').strip()
+                admin_name = os.getenv('ADMIN_NAME', 'Administrateur').strip()
+                if admin_email and admin_password:
+                    existing = User.query.filter_by(email=admin_email).first()
+                    if existing is None:
+                        admin_user = User(
+                            name=admin_name,
+                            email=admin_email,
+                            role='admin',
+                            is_approved=True,
+                            is_verified=True,
+                        )
+                        admin_user.set_password(admin_password)
+                        db.session.add(admin_user)
+                        db.session.commit()
+                        logger.info(f'Admin user created: {admin_email}')
+                    else:
+                        existing.is_approved = True
+                        existing.is_verified = True
+                        existing.role = 'admin'
+                        existing.set_password(admin_password)
+                        db.session.commit()
+                        logger.info(f'Existing user promoted to admin: {admin_email}')
                 break
             except OperationalError as oe:
                 logger.warning(f'Database not ready (attempt {attempt+1}/5): {oe}')
