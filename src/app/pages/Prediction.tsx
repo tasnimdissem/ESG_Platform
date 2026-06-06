@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useSearchParams } from 'react-router';
-import { Calculator, Activity, Leaf, Users, Building, ShieldCheck, Zap, Download, History } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router';
+import { Calculator, Activity, Leaf, Users, Building, ShieldCheck, Zap, Download, History, CheckCircle, Plus } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { createCompany, fetchRecommendations, type RecommendationItem } from '../services/api';
+import { addCompanyHistory, createCompany, fetchCompanies, fetchRecommendations, type CompanyRecord, type RecommendationItem } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { jsPDF } from 'jspdf';
 import { DEFAULT_INDICATORS, ESGIndicators, INDICATOR_LABELS } from '../utils/esgIndicators';
 
@@ -11,10 +12,16 @@ type ValidationErrorDetail = {
   message: string;
 };
 
+const NEW_COMPANY_SENTINEL = '__new__';
+
 export default function Prediction() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const prefilledCompanyName = searchParams.get('company') ?? '';
-  
+  const prefilledCompanyId = searchParams.get('companyId') ?? null;
+
   const [formData, setFormData] = useState<ESGIndicators>(() => {
     try {
       const raw = localStorage.getItem('esg_simulator_form');
@@ -37,9 +44,11 @@ export default function Prediction() {
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrorDetail[]>([]);
   const [history, setHistory] = useState<any[]>([]);
-  const [showSaveCompany, setShowSaveCompany] = useState(false);
-  const [companyName, setCompanyName] = useState(prefilledCompanyName);
-  const [isSavingCompany, setIsSavingCompany] = useState(false);
+  const [companies, setCompanies] = useState<CompanyRecord[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   useEffect(() => {
     try {
@@ -76,6 +85,10 @@ export default function Prediction() {
 
   useEffect(() => {
     fetchHistory();
+  }, []);
+
+  useEffect(() => {
+    fetchCompanies().then(setCompanies).catch(() => {});
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -121,6 +134,18 @@ export default function Prediction() {
 
       setScore(data.score);
       fetchHistory();
+
+      // Auto-save vers l'entreprise si on vient de la page Entreprises
+      if (prefilledCompanyId) {
+        setAutoSaveStatus('saving');
+        try {
+          await addCompanyHistory(prefilledCompanyId, { indicators: formData, score: data.score });
+          setAutoSaveStatus('saved');
+        } catch {
+          setAutoSaveStatus('error');
+        }
+      }
+
       // Récupérer les meilleures recommandations à afficher avec le score
       try {
         const recs = await fetchRecommendations({ score: data.score, focus_area: formData.primary_industry });
@@ -150,24 +175,22 @@ export default function Prediction() {
   };
 
   const handleSaveToCompany = async () => {
-    if (!companyName.trim() || score === null) return;
-    setIsSavingCompany(true);
-
+    if (!selectedCompanyId || score === null) return;
+    setSaveStatus('saving');
     try {
-      await createCompany({
-        name: companyName,
-        indicators: formData,
-        score,
-      });
-      
-      setShowSaveCompany(false);
-      setCompanyName('');
-      alert('Entreprise enregistrée avec succès !');
-    } catch (err) {
-      console.error(err);
-      alert('Erreur lors de l\'enregistrement');
-    } finally {
-      setIsSavingCompany(false);
+      if (selectedCompanyId === NEW_COMPANY_SENTINEL) {
+        const name = newCompanyName.trim();
+        if (!name) { setSaveStatus('error'); return; }
+        const created = await createCompany({ name, indicators: formData, score });
+        setCompanies((prev) => [created, ...prev]);
+        setSelectedCompanyId(created.entreprise_id);
+        setNewCompanyName('');
+      } else {
+        await addCompanyHistory(selectedCompanyId, { indicators: formData, score });
+      }
+      setSaveStatus('saved');
+    } catch {
+      setSaveStatus('error');
     }
   };
 
@@ -505,9 +528,6 @@ export default function Prediction() {
                     </div>
                   </div>
                   
-                  <p className="text-xs text-gray-400">
-                    Modèle CatBoost v1.2 (Précision estimée: 89%)
-                  </p>
 
                   <button
                     onClick={handleExportPDF}
@@ -519,43 +539,80 @@ export default function Prediction() {
                     {isExporting ? 'Génération...' : 'Exporter en PDF'}
                   </button>
 
-                  <button
-                    onClick={() => setShowSaveCompany(true)}
-                    type="button"
-                    className="mt-3 w-full py-3 px-4 rounded-xl border-2 border-blue-500 text-blue-600 font-bold hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Building className="w-5 h-5" />
-                    Enregistrer pour une entreprise
-                  </button>
+                  {prefilledCompanyId ? (
+                    <div className={`mt-3 w-full py-3 px-4 rounded-xl border flex items-center justify-center gap-2 text-sm font-semibold ${
+                      autoSaveStatus === 'saved' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' :
+                      autoSaveStatus === 'saving' ? 'border-blue-200 bg-blue-50 text-blue-600' :
+                      autoSaveStatus === 'error' ? 'border-red-300 bg-red-50 text-red-600' :
+                      'border-gray-200 bg-gray-50 text-gray-400'
+                    }`}>
+                      {autoSaveStatus === 'saving' && <><Activity className="w-4 h-4 animate-spin" />Sauvegarde en cours…</>}
+                      {autoSaveStatus === 'saved' && <><CheckCircle className="w-4 h-4" />Score sauvegardé pour <span className="font-bold">{prefilledCompanyName}</span></>}
+                      {autoSaveStatus === 'error' && <>Erreur de sauvegarde automatique</>}
+                      {autoSaveStatus === 'idle' && <><Building className="w-4 h-4" />En attente du calcul…</>}
+                    </div>
+                  ) : (
+                    <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <Building className="w-3.5 h-3.5" />
+                        Associer à une entreprise
+                      </p>
+                      <select
+                        value={selectedCompanyId ?? ''}
+                        onChange={(e) => {
+                          setSelectedCompanyId(e.target.value || null);
+                          setSaveStatus('idle');
+                          if (e.target.value !== NEW_COMPANY_SENTINEL) setNewCompanyName('');
+                        }}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-2"
+                      >
+                        <option value="">Sélectionner une entreprise…</option>
+                        {companies.map((c) => (
+                          <option key={c.entreprise_id} value={c.entreprise_id}>{c.nom}</option>
+                        ))}
+                        {isAdmin && (
+                          <option value={NEW_COMPANY_SENTINEL}>＋ Créer une nouvelle entreprise</option>
+                        )}
+                      </select>
 
-                  {showSaveCompany && (
-                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Nom de l'entreprise</label>
-                      <input
-                        type="text"
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
-                        placeholder="Ex: TechCorp SA"
-                        className="w-full px-3 py-2 border border-blue-300 rounded-md mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleSaveToCompany}
-                          disabled={isSavingCompany || !companyName.trim()}
-                          className="flex-1 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700 disabled:opacity-50"
-                        >
-                          {isSavingCompany ? 'Enregistrement...' : 'Enregistrer'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowSaveCompany(false);
-                            setCompanyName('');
-                          }}
-                          className="flex-1 py-2 bg-gray-300 text-gray-700 rounded-md font-semibold hover:bg-gray-400"
-                        >
-                          Annuler
-                        </button>
-                      </div>
+                      {selectedCompanyId === NEW_COMPANY_SENTINEL && (
+                        <input
+                          type="text"
+                          value={newCompanyName}
+                          onChange={(e) => { setNewCompanyName(e.target.value); setSaveStatus('idle'); }}
+                          placeholder="Nom de la nouvelle entreprise…"
+                          autoFocus
+                          className="w-full px-3 py-2 border border-emerald-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-2"
+                        />
+                      )}
+
+                      {saveStatus === 'saved' && (
+                        <p className="text-xs text-emerald-600 flex items-center gap-1 mb-2">
+                          <CheckCircle className="w-3.5 h-3.5" />Score enregistré avec succès
+                        </p>
+                      )}
+                      {saveStatus === 'error' && (
+                        <p className="text-xs text-red-500 mb-2">Erreur lors de l'enregistrement.</p>
+                      )}
+                      <button
+                        onClick={handleSaveToCompany}
+                        disabled={
+                          !selectedCompanyId ||
+                          (selectedCompanyId === NEW_COMPANY_SENTINEL && !newCompanyName.trim()) ||
+                          saveStatus === 'saving' ||
+                          saveStatus === 'saved'
+                        }
+                        type="button"
+                        className="w-full py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-40 flex items-center justify-center gap-2 transition-colors"
+                      >
+                        {saveStatus === 'saving' ? (
+                          <><Activity className="w-4 h-4 animate-spin" />Enregistrement…</>
+                        ) : selectedCompanyId === NEW_COMPANY_SENTINEL ? (
+                          <><Plus className="w-4 h-4" />Créer et enregistrer</>
+                        ) : (
+                          <><Building className="w-4 h-4" />Enregistrer le score</>
+                        )}
+                      </button>
                     </div>
                   )}
 
@@ -582,7 +639,7 @@ export default function Prediction() {
                               </span>
                             </div>
                             <button
-                              onClick={() => (window.location.href = `/recommendations?focus=${encodeURIComponent(formData.primary_industry)}`)}
+                              onClick={() => navigate(`/recommendations?focus=${encodeURIComponent(formData.primary_industry)}`)}
                               className="w-full text-sm text-white bg-emerald-600 hover:bg-emerald-700 font-semibold py-2 px-3 rounded-lg transition-colors mt-2"
                             >
                               Voir toutes les recommandations →

@@ -78,7 +78,7 @@ def compute_esg_score(features: dict[str, float]) -> dict[str, Any]:
 
 
 def get_dashboard_kpis(user: Any | None = None) -> dict[str, Any]:
-    role = getattr(user, 'role', 'user')
+    role = getattr(user, 'role', 'decideur')
 
     base_metrics = {
         'esg_score': 76,

@@ -158,6 +158,32 @@ def create_app() -> Flask:
         logger.warning(f"JWT error ({type(error).__name__}): {str(error)}")
         return jsonify({'error': 'Session expirée ou invalide. Veuillez vous reconnecter.'}), 401
 
+    # Flask-JWT-Extended calls abort() internally rather than raising JWTExtendedException,
+    # so the errorhandler above is never reached. These callbacks intercept at the right level.
+    @jwt.unauthorized_loader
+    def missing_token_callback(reason: str) -> tuple:
+        logger.warning(f"JWT missing token: {reason}")
+        return jsonify({'error': 'Session expirée ou invalide. Veuillez vous reconnecter.'}), 401
+
+    @jwt.invalid_token_loader
+    def invalid_token_callback(reason: str) -> tuple:
+        logger.warning(f"JWT invalid token: {reason}")
+        return jsonify({'error': 'Session expirée ou invalide. Veuillez vous reconnecter.'}), 401
+
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header: dict, jwt_payload: dict) -> tuple:
+        logger.warning(f"JWT expired for sub={jwt_payload.get('sub')}")
+        return jsonify({'error': 'Session expirée. Veuillez vous reconnecter.'}), 401
+
+    @jwt.revoked_token_loader
+    def revoked_token_callback(jwt_header: dict, jwt_payload: dict) -> tuple:
+        logger.warning(f"JWT revoked for sub={jwt_payload.get('sub')}")
+        return jsonify({'error': 'Session révoquée. Veuillez vous reconnecter.'}), 401
+
+    @jwt.needs_fresh_token_loader
+    def fresh_token_required_callback(jwt_header: dict, jwt_payload: dict) -> tuple:
+        return jsonify({'error': 'Authentification fraîche requise.'}), 401
+
     @app.errorhandler(HTTPException)
     def handle_http_error(error: HTTPException) -> tuple:
         """Preserve Flask/HTTP errors instead of converting them to 500s."""
@@ -179,4 +205,4 @@ app = create_app()
 if __name__ == '__main__':
     # FIXED: debug actif uniquement en développement
     is_dev = os.getenv('FLASK_ENV', 'development') == 'development'
-    app.run(host='0.0.0.0', port=5050, debug=is_dev)
+    app.run(host='0.0.0.0', port=5001, debug=is_dev)

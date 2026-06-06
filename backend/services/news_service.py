@@ -9,9 +9,24 @@ from backend.services.news_scraper import scrape_esg_news
 load_dotenv()
 API_KEY = os.getenv("NEWS_API_KEY")
 
-# Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+_ENV_KEYWORDS = {"climate", "carbon", "emission", "renewable", "energy", "environment", "green", "biodiversity", "water", "pollution", "deforestation", "net zero", "ghg"}
+_SOC_KEYWORDS = {"social", "diversity", "inclusion", "human rights", "labor", "employee", "community", "gender", "equity", "health", "safety", "workforce"}
+_GOV_KEYWORDS = {"governance", "board", "executive", "compliance", "transparency", "audit", "shareholder", "regulation", "ethics", "corruption", "disclosure"}
+
+
+def _classify_category(text: str) -> str:
+    """Classify an article into E, S, G or ESG based on keyword matching."""
+    lower = text.lower()
+    scores = {
+        "Environnement": sum(1 for k in _ENV_KEYWORDS if k in lower),
+        "Social": sum(1 for k in _SOC_KEYWORDS if k in lower),
+        "Gouvernance": sum(1 for k in _GOV_KEYWORDS if k in lower),
+    }
+    best_cat, best_score = max(scores.items(), key=lambda x: x[1])
+    return best_cat if best_score > 0 else "ESG"
 
 
 def fetch_esg_news(limit: int = 8) -> list[dict[str, Any]]:
@@ -24,7 +39,10 @@ def fetch_esg_news(limit: int = 8) -> list[dict[str, Any]]:
         return scrape_esg_news(limit)
 
     params = {
-"q": "\"ESG score\" OR \"ESG rating\" OR \"sustainable finance\" OR \"green bond\" OR \"carbon offset\"",
+        "q": (
+            '"ESG score" OR "ESG rating" OR "sustainable finance" OR "green bond" '
+            'OR "carbon offset" OR "climate risk" OR "social impact" OR "corporate governance"'
+        ),
         "language": "en",
         "sortBy": "publishedAt",
         "pageSize": limit,
@@ -32,27 +50,30 @@ def fetch_esg_news(limit: int = 8) -> list[dict[str, Any]]:
     }
 
     try:
-        logger.debug(f"Fetching news from {url} with params: {params}")
+        logger.debug(f"Fetching news from {url}")
         response = requests.get(url, params=params, timeout=5)
         logger.debug(f"Response status code: {response.status_code}")
-        
+
         response.raise_for_status()
         data = response.json()
 
-        logger.debug(f"API Response: {data}")
         articles = data.get("articles", [])
         logger.debug(f"Number of articles fetched: {len(articles)}")
 
         news = []
         for i, article in enumerate(articles, start=1):
+            title = article.get("title") or ""
+            description = article.get("description") or ""
+            combined = f"{title} {description}"
             news.append({
                 "id": i,
-                "title": article.get("title"),
-                "source": article.get("source", {}).get("name"),
+                "title": title,
+                "description": description,
+                "source": article.get("source", {}).get("name", ""),
                 "region": "Global",
-                "category": "ESG",
-                "date": article.get("publishedAt"),
-                "url": article.get("url"),
+                "category": _classify_category(combined),
+                "date": article.get("publishedAt", ""),
+                "url": article.get("url", ""),
             })
 
         logger.debug(f"Returning {len(news)} formatted news items")

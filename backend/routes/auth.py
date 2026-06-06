@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -48,6 +48,8 @@ def ensure_user_schema() -> None:
         statements.append('ALTER TABLE users ADD COLUMN is_approved BOOLEAN NOT NULL DEFAULT FALSE')
     if 'is_verified' not in columns:
         statements.append('ALTER TABLE users ADD COLUMN is_verified BOOLEAN NOT NULL DEFAULT FALSE')
+    if 'company_id' not in columns:
+        statements.append('ALTER TABLE users ADD COLUMN company_id INTEGER')
 
     for statement in statements:
         db.session.execute(text(statement))
@@ -83,7 +85,7 @@ def register() -> object:
     name = validated_data.name.strip()
     email = validated_data.email.strip().lower()
     password = validated_data.password
-    role = 'metier' if validated_data.role == 'user' else validated_data.role
+    role = 'non_attribue'
 
     if User.query.filter_by(email=email).first() is not None:
         return jsonify({'error': 'Cet e-mail existe déjà'}), 409

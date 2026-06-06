@@ -5,6 +5,7 @@ interface User {
   name: string;
   email: string;
   role: string;
+  company_id?: number | null;
   avatar_url?: string | null;
   created_at?: string | null;
 }
@@ -28,6 +29,14 @@ type AuthResponse = {
   user: User;
 };
 
+function normalizeUser(user: User | null): User | null {
+  if (!user) return null;
+  return {
+    ...user,
+    role: user.role === 'user' ? 'decideur' : user.role,
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -44,8 +53,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const data = (await response.json()) as { user: User | null };
-      setUser(data.user ?? null);
-      return data.user ?? null;
+      const normalizedUser = normalizeUser(data.user ?? null);
+      setUser(normalizedUser);
+      return normalizedUser;
     } catch {
       setUser(null);
       return null;
@@ -96,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const data = (await response.json()) as AuthResponse;
-    setUser(data.user);
+    setUser(normalizeUser(data.user));
   };
 
   const logout = async () => {

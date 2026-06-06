@@ -101,16 +101,34 @@ def _build_history_entry(payload: dict[str, Any]) -> tuple[dict[str, Any] | None
 @companies_bp.get('/companies')
 @jwt_required()
 def list_companies() -> object:
-    if not _is_admin():
-        return jsonify({'error': 'Accès refusé. Les informations des entreprises sont réservées aux administrateurs.'}), 403
     ensure_company_schema()
-    companies = Company.query.order_by(Company.updated_at.desc(), Company.created_at.desc()).all()
-    return jsonify([company.to_dict() for company in companies]), 200
+    uid = _current_user_id()
+    if uid is None:
+        return jsonify({'error': 'Identité du jeton invalide'}), 401
+    user = db.session.get(User, uid)
+    if user is None:
+        return jsonify({'error': 'Utilisateur introuvable'}), 401
+
+    if user.role == 'admin':
+        companies = Company.query.order_by(Company.updated_at.desc(), Company.created_at.desc()).all()
+        return jsonify([c.to_dict() for c in companies]), 200
+
+    if user.role == 'metier':
+        if not user.company_id:
+            return jsonify({'error': 'Aucune entreprise assignée à votre compte. Contactez un administrateur.'}), 403
+        company = db.session.get(Company, user.company_id)
+        if company is None:
+            return jsonify({'error': 'Entreprise introuvable'}), 404
+        return jsonify([company.to_dict()]), 200
+
+    return jsonify({'error': 'Accès refusé. Permissions insuffisantes.'}), 403
 
 
 @companies_bp.post('/companies')
 @jwt_required()
 def create_company() -> object:
+    if not _is_admin():
+        return jsonify({'error': 'Accès refusé. Réservé aux administrateurs.'}), 403
     ensure_company_schema()
     payload, error = _get_json_payload()
     if error is not None:
@@ -178,23 +196,56 @@ def create_company() -> object:
 @companies_bp.get('/companies/<string:company_id>')
 @jwt_required()
 def get_company(company_id: str) -> object:
-    if not _is_admin():
-        return jsonify({'error': 'Accès refusé. Les informations des entreprises sont réservées aux administrateurs.'}), 403
     ensure_company_schema()
+    uid = _current_user_id()
+    if uid is None:
+        return jsonify({'error': 'Identité du jeton invalide'}), 401
+    user = db.session.get(User, uid)
+    if user is None:
+        return jsonify({'error': 'Utilisateur introuvable'}), 401
+
     try:
-        company = db.session.get(Company, int(company_id))
+        cid = int(company_id)
     except (TypeError, ValueError):
         return jsonify({'error': 'Company not found'}), 404
-    if company is None:
-        return jsonify({'error': 'Company not found'}), 404
-    return jsonify(company.to_dict()), 200
+
+    if user.role == 'admin':
+        company = db.session.get(Company, cid)
+        if company is None:
+            return jsonify({'error': 'Company not found'}), 404
+        return jsonify(company.to_dict()), 200
+
+    if user.role == 'metier':
+        if not user.company_id or user.company_id != cid:
+            return jsonify({'error': 'Accès refusé. Vous n\'avez pas accès à cette entreprise.'}), 403
+        company = db.session.get(Company, cid)
+        if company is None:
+            return jsonify({'error': 'Company not found'}), 404
+        return jsonify(company.to_dict()), 200
+
+    return jsonify({'error': 'Accès refusé. Permissions insuffisantes.'}), 403
 
 
 @companies_bp.post('/companies/<string:company_id>/history')
 @jwt_required()
 def add_company_history(company_id: str) -> object:
-    if not _is_admin():
-        return jsonify({'error': 'Accès refusé. Les informations des entreprises sont réservées aux administrateurs.'}), 403
+    uid = _current_user_id()
+    if uid is None:
+        return jsonify({'error': 'Identité du jeton invalide'}), 401
+    user = db.session.get(User, uid)
+    if user is None:
+        return jsonify({'error': 'Utilisateur introuvable'}), 401
+
+    try:
+        cid = int(company_id)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Company not found'}), 404
+
+    if user.role == 'metier':
+        if not user.company_id or user.company_id != cid:
+            return jsonify({'error': 'Accès refusé. Vous ne pouvez sauvegarder que pour votre entreprise assignée.'}), 403
+    elif user.role != 'admin':
+        return jsonify({'error': 'Accès refusé. Permissions insuffisantes.'}), 403
     ensure_company_schema()
     payload, error = _get_json_payload()
     if error is not None:

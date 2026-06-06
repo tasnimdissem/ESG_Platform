@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib import error, request
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
@@ -115,6 +115,40 @@ _SECTOR_CHUNK_KEYWORDS: Dict[str, Dict[str, List[str]]] = {
 
 # Keep backward-compatible alias used by _detect_sector
 _SECTOR_KEYWORDS = _SECTOR_DETECT_KEYWORDS
+
+# ── Small-talk routing ────────────────────────────────────────────────────────
+# Exact normalized queries that should never hit the FAISS index.
+_SMALL_TALK_EXACT: frozenset = frozenset([
+    "hello", "hi", "hey", "yo", "sup", "howdy",
+    "how are you", "how are you doing", "how are you today",
+    "how's it going", "how is it going", "what's up", "whats up",
+    "how do you do", "how r u", "how r you",
+    "good morning", "good evening", "good afternoon", "good night", "good day",
+    "thank you", "thanks", "thx", "ty", "merci", "merci beaucoup",
+    "bonjour", "salut", "bonsoir", "bonne journée", "bonne nuit",
+    "bye", "goodbye", "see you", "see ya", "ciao", "au revoir", "à bientôt",
+    "ok", "okay", "alright", "sure", "no problem", "np",
+    "who are you", "what are you", "what can you do",
+    "nice", "great", "awesome", "perfect", "cool",
+    "yes", "no", "oui", "non",
+])
+
+# If the query starts with one of these prefixes AND is short (< 80 chars)
+# AND contains no ESG signal, it's treated as small talk.
+_SMALL_TALK_PREFIXES: tuple = (
+    "hello", "hi ", "hi!", "hi,",
+    "hey ", "hey!", "hey,",
+    "bonjour", "salut", "bonsoir",
+)
+
+# Terms that indicate a real ESG/data question even inside a greeting.
+_ESG_SIGNALS: frozenset = frozenset([
+    "esg", "score", "report", "company", "emission", "carbon",
+    "sustain", "environment", "social", "governance", "sector",
+    "nestl", "total", "energi", "climat", "renewable", "ghg",
+    "analysi", "analys", "compar", "rank", "predict", "model",
+    "data", "dataset", "pdf", "document", "what is", "qu'est",
+])
 
 
 class RagEngine:
@@ -326,6 +360,124 @@ class RagEngine:
         status["index_strategy"] = "versioned-faiss"
         return status
 
+    def _classify_intent(self, query: str) -> str:
+        """Ask the LLM to classify query intent. Returns 'SMALLTALK', 'GENERAL', or 'RAG'.
+
+        SMALLTALK — casual chat, emotions, greetings, personal questions with no data need.
+        GENERAL   — conceptual/factual questions answerable from general ESG knowledge.
+        RAG       — needs specific company reports, scores, or indexed proprietary data.
+        """
+        classification_prompt = (
+            "Classify the user query into exactly one of these three categories:\n\n"
+            "SMALLTALK — casual chat, greetings, emotions, personal questions, random phrases "
+            "that require no data or expertise to handle "
+            "(examples: 'hello', 'thank you i love you', 'do you know my name', 'lol', 'ok bye')\n\n"
+            "GENERAL — conceptual or factual question answerable from general knowledge, "
+            "no specific company document needed "
+            "(examples: 'what is ESG?', 'explain CSRD', 'how is a carbon footprint calculated?', "
+            "'what are the main ESG rating agencies?')\n\n"
+            "RAG — requires searching specific indexed documents, company reports, or proprietary data "
+            "(examples: 'Nestlé ESG score 2022', 'analyse TotalEnergies sustainability report', "
+            "'compare Nestlé and Microsoft carbon emissions')\n\n"
+            f"User query: {query}\n\n"
+            "Reply with ONE word only: SMALLTALK, GENERAL, or RAG"
+        )
+        raw = self._generate_direct(
+            system="You are a query intent classifier. Reply with exactly one word from the given options.",
+            user=classification_prompt,
+        )
+        intent = (raw or "").strip().upper().split()[0] if raw else ""
+        if intent in ("SMALLTALK", "GENERAL", "RAG"):
+            return intent
+        return self._classify_intent_fallback(query)
+
+    def _classify_intent_fallback(self, query: str) -> str:
+        """Pattern-based fallback when the LLM classifier is unavailable."""
+        normalized = re.sub(r'[^\w\s]', ' ', query.strip().lower()).strip()
+        normalized = re.sub(r'\s+', ' ', normalized)
+
+        if normalized in _SMALL_TALK_EXACT:
+            return "SMALLTALK"
+
+        has_esg = any(sig in normalized for sig in _ESG_SIGNALS)
+
+        if not has_esg:
+            if len(query.strip()) < 80 and any(normalized.startswith(p) for p in _SMALL_TALK_PREFIXES):
+                return "SMALLTALK"
+            if len(query.strip()) < 60 and normalized.startswith("i "):
+                return "SMALLTALK"
+            if len(query.strip()) < 50:
+                return "SMALLTALK"
+
+        if has_esg:
+            return "RAG"
+        return "GENERAL"
+
+    def _generate_direct(self, system: str, user: str) -> str:
+        if config.GROQ_API_KEY and config.GROQ_MODEL:
+            try:
+                client = OpenAI(
+                    api_key=config.GROQ_API_KEY,
+                    base_url=config.GROQ_BASE_URL,
+                    timeout=config.GROQ_TIMEOUT_SECONDS,
+                )
+                response = client.chat.completions.create(
+                    model=config.GROQ_MODEL,
+                    messages=[
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    temperature=0.4,
+                )
+                content = response.choices[0].message.content
+                return (content or "").strip()
+            except Exception:
+                pass
+        return ""
+
+    def _small_talk_response(self, query: str) -> str:
+        system = (
+            "Tu es un assistant ESG sympathique et professionnel. "
+            "Réponds naturellement et brièvement (1-2 phrases) dans la même langue que l'utilisateur. "
+            "Mentionne que tu peux aider sur les données ESG, les rapports de durabilité ou les scores d'entreprises. "
+            "Ne commence pas par 'Bien sûr' ou 'Certainement' — sois direct et chaleureux."
+        )
+        direct = self._generate_direct(system=system, user=query)
+        if direct:
+            return direct
+
+        normalized = query.strip().lower()
+        if any(w in normalized for w in ["thank", "merci"]):
+            return "You're welcome! Feel free to ask any ESG or sustainability question."
+        if any(w in normalized for w in ["bye", "goodbye", "au revoir", "ciao"]):
+            return "Goodbye! Come back anytime for ESG data or sustainability insights."
+        return (
+            "Hello! I'm your ESG data assistant. "
+            "Ask me about sustainability reports, ESG scores, company performance, or sector comparisons."
+        )
+
+    def _answer_from_general_knowledge(self, query: str) -> str:
+        system = (
+            "Tu es un expert ESG et développement durable avec une connaissance approfondie "
+            "des frameworks de reporting (GRI, SASB, TCFD, CSRD), du reporting carbone, "
+            "des marchés financiers ESG et des meilleures pratiques sectorielles.\n\n"
+            "RÈGLES :\n"
+            "1. Réponds TOUJOURS dans la même langue que la question "
+            "(français si la question est en français, anglais si en anglais).\n"
+            "2. Commence DIRECTEMENT par la réponse — sans formule introductive artificielle.\n"
+            "3. Structure ta réponse avec des exemples concrets d'entreprises ou de secteurs réels.\n"
+            "4. Sois pédagogique et synthétique : sous-titres ou listes si plusieurs domaines.\n"
+            "5. N'invente jamais de données chiffrées spécifiques non vérifiables."
+        )
+        answer = self._generate_direct(system=system, user=query)
+        if answer:
+            return answer
+        return (
+            "Je n'ai pas de données spécifiques sur ce sujet dans ma base documentaire. "
+            "Reformulez votre question en précisant une entreprise, un secteur ou une année "
+            "pour que je puisse mieux vous aider."
+        )
+
     def _prefers_pdf_context(self, query: str) -> bool:
         normalized = query.lower()
         pdf_signals = (
@@ -363,7 +515,15 @@ class RagEngine:
         return any(signal in normalized for signal in dataset_signals)
 
     def answer(self, query: str, top_k: int = 8) -> Tuple[str, List[Dict[str, Any]]]:
-        # Detect sector hint and PDF preference before retrieval
+        # Classify intent: SMALLTALK → direct reply, GENERAL/RAG → check index first.
+        intent = self._classify_intent(query)
+
+        if intent == "SMALLTALK":
+            return self._small_talk_response(query), []
+
+        # For both GENERAL and RAG intents: always search the index first.
+        # If relevant documents are found, use them (with sources).
+        # Only fall back to general-knowledge answer when nothing relevant is indexed.
         sector_hint = self._detect_sector(query)
         prefer_pdf = self._prefers_pdf_context(query)
         retrieved = self.search(query=query, top_k=top_k, sector_filter=sector_hint, prefer_pdf=prefer_pdf)
@@ -374,12 +534,8 @@ class RagEngine:
         relevant = [r for r in retrieved if r.get("distance", 999.0) <= _SIMILARITY_THRESHOLD]
 
         if not relevant:
-            return (
-                "Je ne dispose pas de documents suffisamment pertinents sur ce sujet "
-                "dans ma base de connaissances. "
-                "Essayez de préciser le nom d'une entreprise, un secteur ou une année de référence.",
-                [],
-            )
+            # No indexed document is close enough — answer from LLM general knowledge.
+            return self._answer_from_general_knowledge(query), []
 
         if self._prefers_pdf_context(query):
             relevant = sorted(
@@ -410,56 +566,61 @@ class RagEngine:
         has_exact = bool(exact_data)
         if has_exact:
             system_prompt = (
-                "You are a precise ESG data analyst. "
-                "The context includes exact data rows extracted from the database. "
-                "You MUST cite those numerical values verbatim — never round, never estimate. "
-                "Always include the company name, year, and all relevant scores exactly as shown. "
-                "When asked to rank or compare companies, use the exact values to do so. "
-                "Answer ONLY from the provided context. "
-                "If data for a specific request is absent, clearly state it is not available — "
-                "do NOT generate speculative or approximate answers."
+                "Tu es un analyste de données ESG de précision. "
+                "Le contexte contient des lignes de données exactes extraites de la base de données.\n\n"
+                "RÈGLES IMPÉRATIVES :\n"
+                "1. Réponds toujours dans la même langue que la question "
+                "(français si la question est en français, anglais si en anglais).\n"
+                "2. Commence directement par la réponse — sans formule introductive.\n"
+                "3. Cite les valeurs numériques EXACTEMENT telles qu'elles apparaissent "
+                "— sans arrondir, sans estimer. Inclus le nom de l'entreprise, l'année et les scores pertinents.\n"
+                "4. Pour classer ou comparer des entreprises, utilise les valeurs exactes du contexte.\n"
+                "5. Si une donnée est absente du contexte, dis-le clairement sans inventer."
             )
         else:
             system_prompt = (
-                "You are a helpful ESG data analyst. "
-                "Answer using ONLY the information present in the provided context. "
-                "RULES:\n"
-                "1. If the context contains partial information, answer what IS available and clearly "
-                "state what is missing or not covered.\n"
-                "2. Do NOT speculate or invent data not present in the context.\n"
-                "3. If the context covers a different company or sector than asked, mention the "
-                "discrepancy but still summarise what the context does contain.\n"
-                "4. Do NOT expose internal chunk IDs, source markers, or data-format details.\n"
-                "5. Prefer concise, structured answers (bullet points or short paragraphs).\n"
-                "6. Always respond in the same language as the question."
+                "Tu es un expert ESG (Environnement, Social, Gouvernance) et développement durable. "
+                "Tu analyses des rapports de durabilité, des données d'entreprises et des études académiques "
+                "pour répondre aux questions des utilisateurs de façon claire, concrète et pédagogique.\n\n"
+                "RÈGLES IMPÉRATIVES :\n"
+                "1. LANGUE : réponds TOUJOURS dans la même langue que la question. "
+                "Si la question est en français → réponse entièrement en français, aucun mot anglais. "
+                "Si en anglais → réponse entièrement en anglais.\n"
+                "2. STYLE : commence DIRECTEMENT par la réponse. "
+                "N'utilise JAMAIS de formules introductives comme 'Selon le contexte fourni', "
+                "'D'après les documents', 'According to the documents', 'Based on the context', etc.\n"
+                "3. EXEMPLES CONCRETS : si les documents mentionnent une entreprise "
+                "(TotalEnergies, Unilever, Michelin, Microsoft…), cite ses initiatives, "
+                "indicateurs ou objectifs réels tirés du document "
+                "(ex : 'TotalEnergies vise la neutralité carbone en 2050 et a réduit ses émissions Scope 1 de X%').\n"
+                "4. STRUCTURE : utilise des sous-titres ou des listes à puces si la question couvre plusieurs domaines.\n"
+                "5. COMPLÉTUDE : si le contexte ne couvre pas tout, complète naturellement "
+                "avec tes connaissances générales ESG sans le signaler artificiellement.\n"
+                "6. PRÉCISION : n'invente jamais de chiffres ou données absents du contexte.\n"
+                "7. DISCRÉTION : ne révèle jamais les noms de fichiers internes, chunk IDs ou la structure technique."
             )
 
-        prompt = (
-            f"{system_prompt}\n\n"
-            f"Question: {query}\n\n"
-            "Context:\n"
+        user_prompt = (
+            f"Question : {query}\n\n"
+            "Contexte documentaire :\n"
             + "\n\n".join(context_lines)
         )
 
-        groq_answer = self._generate_with_groq(prompt=prompt)
+        groq_answer = self._generate_with_groq(prompt=user_prompt, system=system_prompt)
         if groq_answer:
             return groq_answer, relevant
 
         if config.OPENAI_API_KEY:
             try:
-                openai_answer = self._generate_with_openai(prompt=prompt)
+                openai_answer = self._generate_with_openai(prompt=user_prompt, system=system_prompt)
                 if openai_answer:
                     return openai_answer, relevant
             except Exception:
                 pass
 
-        ollama_answer = self._generate_with_ollama(prompt=prompt)
-        if ollama_answer:
-            return ollama_answer, relevant
-
         return self._fallback_answer(query=query, retrieved=relevant), relevant
 
-    def _generate_with_groq(self, prompt: str) -> str:
+    def _generate_with_groq(self, prompt: str, system: str = "") -> str:
         if not config.GROQ_API_KEY or not config.GROQ_MODEL:
             return ""
 
@@ -472,15 +633,7 @@ class RagEngine:
             response = client.chat.completions.create(
                 model=config.GROQ_MODEL,
                 messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a helpful ESG data analyst. "
-                            "Answer using ONLY the context provided in the user message. "
-                            "If the context is partial, summarise what is available and note gaps. "
-                            "Never speculate. Always reply in the language of the question."
-                        ),
-                    },
+                    {"role": "system", "content": system},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.0,
@@ -490,7 +643,7 @@ class RagEngine:
         except Exception:
             return ""
 
-    def _generate_with_openai(self, prompt: str) -> str:
+    def _generate_with_openai(self, prompt: str, system: str = "") -> str:
         if not config.OPENAI_API_KEY or not config.OPENAI_MODEL:
             return ""
 
@@ -499,15 +652,7 @@ class RagEngine:
             response = client.chat.completions.create(
                 model=config.OPENAI_MODEL,
                 messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a helpful ESG data analyst. "
-                            "Answer using ONLY the context provided in the user message. "
-                            "If the context is partial, summarise what is available and note gaps. "
-                            "Never speculate. Always reply in the language of the question."
-                        ),
-                    },
+                    {"role": "system", "content": system},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.0,
@@ -515,31 +660,6 @@ class RagEngine:
             content = response.choices[0].message.content
             return (content or "").strip()
         except Exception:
-            return ""
-
-    def _generate_with_ollama(self, prompt: str) -> str:
-        if not config.OLLAMA_MODEL:
-            return ""
-
-        payload = {
-            "model": config.OLLAMA_MODEL,
-            "prompt": prompt,
-            "stream": False,
-        }
-
-        req = request.Request(
-            url=f"{config.OLLAMA_BASE_URL.rstrip('/')}/api/generate",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-
-        try:
-            with request.urlopen(req, timeout=config.OLLAMA_TIMEOUT_SECONDS) as resp:
-                raw = resp.read().decode("utf-8", errors="ignore")
-            parsed = json.loads(raw)
-            return (parsed.get("response") or "").strip()
-        except (error.URLError, TimeoutError, json.JSONDecodeError, OSError):
             return ""
 
     def _fallback_answer(self, query: str, retrieved: List[Dict[str, str]]) -> str:
@@ -575,6 +695,6 @@ class RagEngine:
 
         lines.append("")
         lines.append(
-            "Configurez GROQ_API_KEY et GROQ_MODEL, ou OLLAMA_MODEL dans le fichier .env pour obtenir des réponses synthétisées."
+            "Configurez GROQ_API_KEY et GROQ_MODEL, ou OPENAI_API_KEY dans le fichier .env pour obtenir des réponses synthétisées."
         )
         return "\n".join(lines)

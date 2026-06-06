@@ -12,6 +12,21 @@ from typing import Any
 import requests
 from bs4 import BeautifulSoup
 
+_ENV_KEYWORDS = {"climate", "carbon", "emission", "renewable", "energy", "environment", "green", "biodiversity", "water", "pollution"}
+_SOC_KEYWORDS = {"social", "diversity", "inclusion", "human rights", "labor", "employee", "community", "gender", "equity", "health"}
+_GOV_KEYWORDS = {"governance", "board", "compliance", "transparency", "audit", "shareholder", "regulation", "ethics", "disclosure"}
+
+
+def _classify_category(text: str) -> str:
+    lower = text.lower()
+    scores = {
+        "Environnement": sum(1 for k in _ENV_KEYWORDS if k in lower),
+        "Social": sum(1 for k in _SOC_KEYWORDS if k in lower),
+        "Gouvernance": sum(1 for k in _GOV_KEYWORDS if k in lower),
+    }
+    best_cat, best_score = max(scores.items(), key=lambda x: x[1])
+    return best_cat if best_score > 0 else "ESG"
+
 logger = logging.getLogger(__name__)
 
 _HEADERS = {
@@ -80,8 +95,8 @@ def _scrape_esgtoday(limit: int) -> list[dict[str, Any]]:
             "date": date_str,
             "source": "ESG Today",
             "region": "Global",
-            "category": "ESG",
-            "excerpt": excerpt,
+            "category": _classify_category(f"{title} {excerpt}"),
+            "description": excerpt,
         })
 
         if len(articles) >= limit:
@@ -129,8 +144,8 @@ def _scrape_greenbiz(limit: int) -> list[dict[str, Any]]:
             "date": date_str,
             "source": "GreenBiz",
             "region": "Global",
-            "category": "ESG",
-            "excerpt": excerpt,
+            "category": _classify_category(f"{title} {excerpt}"),
+            "description": excerpt,
         })
 
         if len(articles) >= limit:

@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import VerifyEmail from './pages/VerifyEmail';
 import Dashboard from './pages/Dashboard';
 import Analytics from './pages/Analytics';
 import ChatbotRag from './pages/ChatbotRag';
@@ -13,6 +14,7 @@ import Companies from './pages/Companies';
 import CompanyView from './pages/CompanyView';
 import AdminDashboard from './pages/AdminDashboard';
 import Profile from './pages/Profile';
+import PowerBIDashboard from './pages/PowerBIDashboard';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -21,11 +23,25 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (isAuthLoading) {
     return <div className="p-8">Verification de la session...</div>;
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
+
+  return <>{children}</>;
+}
+
+function RoleRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) {
+  const { user, isAuthLoading } = useAuth();
+
+  if (isAuthLoading) {
+    return <div className="p-8">Verification des permissions...</div>;
+  }
+
+  if (!user || !allowedRoles.includes(user.role)) {
+    return <Navigate to="/" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -47,6 +63,10 @@ export const router = createBrowserRouter([
     element: <ResetPassword />,
   },
   {
+    path: '/verify-email',
+    element: <VerifyEmail />,
+  },
+  {
     path: '/',
     element: (
       <ProtectedRoute>
@@ -60,35 +80,67 @@ export const router = createBrowserRouter([
       },
       {
         path: 'analytics',
-        element: <Analytics />,
+        element: (
+          <RoleRoute allowedRoles={['admin', 'decideur', 'metier']}>
+            <Analytics />
+          </RoleRoute>
+        ),
       },
       {
         path: 'profile',
-        element: <Profile />, 
+        element: <Profile />,
+      },
+      {
+        path: 'powerbi',
+        element: <PowerBIDashboard />,
       },
       {
         path: 'chatbot',
-        element: <ChatbotRag />,
+        element: (
+          <RoleRoute allowedRoles={['admin', 'metier']}>
+            <ChatbotRag />
+          </RoleRoute>
+        ),
       },
       {
         path: 'recommendations',
-        element: <RecommendationsRag />,
+        element: (
+          <RoleRoute allowedRoles={['admin', 'decideur', 'metier']}>
+            <RecommendationsRag />
+          </RoleRoute>
+        ),
       },
       {
         path: 'prediction',
-        element: <Prediction />,
+        element: (
+          <RoleRoute allowedRoles={['admin', 'metier']}>
+            <Prediction />
+          </RoleRoute>
+        ),
       },
       {
         path: 'companies',
-        element: <Companies />,
+        element: (
+          <RoleRoute allowedRoles={['admin', 'metier']}>
+            <Companies />
+          </RoleRoute>
+        ),
       },
       {
         path: 'companies/:id',
-        element: <CompanyView />,
+        element: (
+          <RoleRoute allowedRoles={['admin', 'metier']}>
+            <CompanyView />
+          </RoleRoute>
+        ),
       },
       {
         path: 'admin',
-        element: <AdminDashboard />,
+        element: (
+          <RoleRoute allowedRoles={['admin']}>
+            <AdminDashboard />
+          </RoleRoute>
+        ),
       },
     ],
   },

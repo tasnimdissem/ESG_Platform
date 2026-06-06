@@ -6,6 +6,7 @@ from backend.extensions import limiter, db
 from backend.services.ml_service import predict_esg
 from backend.schemas import PredictRequest
 from backend.models.prediction import PredictionHistory
+from backend.models.user import User
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 logger = logging.getLogger(__name__)
@@ -71,13 +72,21 @@ def _translate_error(err: dict) -> str:
 prediction_bp = Blueprint('prediction', __name__)
 
 @prediction_bp.post('/predict')
-@limiter.limit("20 per minute")  # FIXED: Rate limiting a 20 requetes / minute par IP
-@jwt_required(optional=True)
+@limiter.limit("20 per minute")
+@jwt_required()
 def predict():
     """
     Endpoint: POST /predict
     Receives validated JSON input and returns the predicted ESG score.
     """
+    user_id = get_jwt_identity()
+    try:
+        current_user = db.session.get(User, int(user_id))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Identité du jeton invalide'}), 401
+    if current_user is None or current_user.role not in ('admin', 'metier'):
+        return jsonify({'error': 'Accès refusé. Réservé aux experts métier et administrateurs.'}), 403
+
     try:
         # 1. Get JSON data from the incoming request
         data = request.get_json()
@@ -102,7 +111,6 @@ def predict():
         logger.info(f"Prediction successful: score={score}")
         
         # --- Sauvegarde dans l'historique ---
-        user_id = get_jwt_identity() # Retourne None si pas authentifié
         try:
             history_entry = PredictionHistory(
                 user_id=user_id,
@@ -138,10 +146,28 @@ def predict():
 @prediction_bp.get('/history')
 @jwt_required()
 def get_history():
-    """
-    Endpoint: GET /history
-    Returns the prediction history for the authenticated user.
-    """
+    """Returns the prediction history scoped to the user's company."""
     user_id = get_jwt_identity()
-    history = PredictionHistory.query.filter_by(user_id=user_id).order_by(PredictionHistory.created_at.desc()).all()
+    try:
+        current_user = db.session.get(User, int(user_id))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Identité du jeton invalide'}), 401
+    if current_user is None or current_user.role not in ('admin', 'metier'):
+        return jsonify({'error': 'Accès refusé. Réservé aux experts métier et administrateurs.'}), 403
+
+    if current_user.role == 'admin':
+        history = PredictionHistory.query.order_by(PredictionHistory.created_at.desc()).all()
+    elif current_user.company_id:
+        company_user_ids = [
+            u.id for u in User.query.filter_by(company_id=current_user.company_id).all()
+        ]
+        history = (
+            PredictionHistory.query
+            .filter(PredictionHistory.user_id.in_(company_user_ids))
+            .order_by(PredictionHistory.created_at.desc())
+            .all()
+        )
+    else:
+        history = PredictionHistory.query.filter_by(user_id=user_id).order_by(PredictionHistory.created_at.desc()).all()
+
     return jsonify([h.to_dict() for h in history]), 200

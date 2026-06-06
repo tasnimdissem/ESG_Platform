@@ -12,7 +12,8 @@ class User(db.Model):
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(64), nullable=False, default='user')
+    role = db.Column(db.String(64), nullable=False, default='decideur')
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id', ondelete='SET NULL'), nullable=True, index=True)
     avatar_url = db.Column(db.String(512), nullable=True)
     avatar_s3_key = db.Column(db.String(255), nullable=True)
     is_blocked = db.Column(db.Boolean, nullable=False, default=False)
@@ -35,6 +36,7 @@ class User(db.Model):
             'name': self.name,
             'email': self.email,
             'role': self.role,
+            'company_id': self.company_id,
             'avatar_url': self.avatar_url,
             'is_blocked': self.is_blocked,
             'is_approved': self.is_approved,

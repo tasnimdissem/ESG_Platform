@@ -1,10 +1,12 @@
 export type NewsItem = {
   id: number;
   title: string;
+  description: string;
   source: string;
   region: string;
   category: string;
   date: string;
+  url: string;
 };
 
 export type ChatResponse = {

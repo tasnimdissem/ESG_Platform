@@ -1,19 +1,69 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldAlert, Trash2, ShieldCheck, UserCheck, Users, Search, Ban, CheckCircle, MailCheck } from 'lucide-react';
+import {
+  Ban,
+  Building2,
+  CheckCircle,
+  MailCheck,
+  Search,
+  Settings2,
+  ShieldAlert,
+  ShieldCheck,
+  Trash2,
+  Users,
+  XCircle,
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router';
-import { getNextAdminRole, getRoleLabel } from '../utils/roles';
+import { getRoleLabel } from '../utils/roles';
+import { Button } from '../components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 
 type User = {
   id: number;
   name: string;
   email: string;
   role: string;
+  company_id: number | null;
   is_blocked: boolean;
   is_approved: boolean;
   is_verified: boolean;
   created_at: string;
 };
+
+type Company = {
+  id: number;
+  name: string;
+};
+
+const ROLE_OPTIONS = [
+  { value: 'metier', label: 'Utilisateur métier' },
+  { value: 'decideur', label: 'Décideur' },
+  { value: 'admin', label: 'Administrateur' },
+] as const;
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -22,6 +72,19 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [roleDraft, setRoleDraft] = useState('metier');
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [isSavingRole, setIsSavingRole] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companyDraft, setCompanyDraft] = useState<string>('none');
+  const [isSavingCompany, setIsSavingCompany] = useState(false);
+  const [approvingUser, setApprovingUser] = useState<User | null>(null);
+  const [approveRoleDraft, setApproveRoleDraft] = useState<string>('metier');
+  const [isApprovingWithRole, setIsApprovingWithRole] = useState(false);
+  const [userToReject, setUserToReject] = useState<User | null>(null);
+  const [isRejecting, setIsRejecting] = useState(false);
 
   useEffect(() => {
     // Redirection si non admin
@@ -36,6 +99,7 @@ export default function AdminDashboard() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await fetch('/api/admin/users', { credentials: 'include' });
       if (!res.ok) throw new Error('Erreur lors du chargement des utilisateurs');
       const data = await res.json();
@@ -47,82 +111,167 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.')) return;
-    
+  const fetchCompanies = async () => {
     try {
-      const res = await fetch(`/api/admin/users/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Erreur lors de la suppression');
-      }
-      setUsers(users.filter(u => u.id !== id));
-    } catch (err: any) {
-      alert(err.message);
-    }
-  };
-
-  const handleToggleBlock = async (id: number, currentlyBlocked: boolean) => {
-    const action = currentlyBlocked ? 'débloquer' : 'bloquer';
-    if (!window.confirm(`Voulez-vous vraiment ${action} cet utilisateur ?`)) return;
-
-    try {
-      const res = await fetch(`/api/admin/users/${id}/block`, {
-        method: 'PUT',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Erreur lors de la modification');
-      }
+      const res = await fetch('/api/companies', { credentials: 'include' });
+      if (!res.ok) return;
       const data = await res.json();
-      setUsers(users.map(u => u.id === id ? { ...u, is_blocked: data.user.is_blocked } : u));
-    } catch (err: any) {
-      alert(err.message);
+      setCompanies(
+        (data as Array<{ id?: number; entreprise_id?: number; name?: string; nom?: string }>).map((c) => ({
+          id: c.id ?? c.entreprise_id ?? 0,
+          name: c.name ?? c.nom ?? '',
+        }))
+      );
+    } catch {
+      // silently ignore — companies list is optional
     }
   };
 
-  const handleToggleRole = async (id: number, currentRole: string) => {
-    const newRole = getNextAdminRole(currentRole);
-    if (!window.confirm(`Voulez-vous vraiment changer le rôle de cet utilisateur en ${getRoleLabel(newRole)} ?`)) return;
+  const openManageModal = (targetUser: User) => {
+    setSelectedUser(targetUser);
+    setRoleDraft(targetUser.role);
+    setCompanyDraft(targetUser.company_id != null ? String(targetUser.company_id) : 'none');
+    setModalError(null);
+    fetchCompanies();
+  };
+
+  const updateUserInState = (updatedUser: User) => {
+    setUsers((currentUsers) => currentUsers.map((entry) => (entry.id === updatedUser.id ? updatedUser : entry)));
+    setSelectedUser((currentSelected) => (currentSelected?.id === updatedUser.id ? updatedUser : currentSelected));
+  };
+
+  const handleSaveRole = async () => {
+    if (!selectedUser || roleDraft === selectedUser.role) return;
 
     try {
-      const res = await fetch(`/api/admin/users/${id}/role`, {
+      setIsSavingRole(true);
+      setModalError(null);
+      const res = await fetch(`/api/admin/users/${selectedUser.id}/role`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ role: newRole })
+        body: JSON.stringify({ role: roleDraft }),
       });
+
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || 'Erreur lors de la modification');
+        throw new Error(errorData.error || 'Erreur lors de la modification du rôle');
       }
-      setUsers(users.map(u => u.id === id ? { ...u, role: newRole } : u));
+
+      const data = await res.json();
+      updateUserInState(data.user);
     } catch (err: any) {
-      alert(err.message);
+      setModalError(err.message);
+    } finally {
+      setIsSavingRole(false);
     }
   };
 
-  const handleApproveUser = async (id: number) => {
-    if (!window.confirm('Voulez-vous valider ce compte et envoyer l’e-mail d’activation ?')) return;
+  const handleDelete = async (targetUser: User) => {
+    try {
+      const res = await fetch(`/api/admin/users/${targetUser.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erreur lors de la suppression');
+      }
+
+      setUsers((currentUsers) => currentUsers.filter((entry) => entry.id !== targetUser.id));
+      setSelectedUser((currentSelected) => (currentSelected?.id === targetUser.id ? null : currentSelected));
+      setUserToDelete(null);
+    } catch (err: any) {
+      setModalError(err.message);
+    }
+  };
+
+  const handleToggleBlock = async (targetUser: User) => {
+    const action = targetUser.is_blocked ? 'débloquer' : 'bloquer';
 
     try {
-      const res = await fetch(`/api/admin/users/${id}/approve`, {
+      const res = await fetch(`/api/admin/users/${targetUser.id}/block`, {
         method: 'PUT',
         credentials: 'include',
       });
-
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Erreur lors de la validation');
+        const errorData = await res.json();
+        throw new Error(errorData.error || `Erreur lors de l'action de ${action}`);
+      }
+      const data = await res.json();
+      updateUserInState(data.user);
+    } catch (err: any) {
+      setModalError(err.message);
+    }
+  };
+
+  const handleAssignCompany = async () => {
+    if (!selectedUser) return;
+    const newCompanyId = companyDraft === 'none' ? null : parseInt(companyDraft, 10);
+    if (newCompanyId === selectedUser.company_id) return;
+
+    try {
+      setIsSavingCompany(true);
+      setModalError(null);
+      const res = await fetch(`/api/admin/users/${selectedUser.id}/company`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ company_id: newCompanyId }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Erreur lors de l'assignation de l'entreprise");
       }
 
-      setUsers(users.map(u => u.id === id ? { ...u, is_approved: data.user.is_approved, is_verified: data.user.is_verified } : u));
+      const data = await res.json();
+      updateUserInState(data.user);
     } catch (err: any) {
-      alert(err.message);
+      setModalError(err.message);
+    } finally {
+      setIsSavingCompany(false);
+    }
+  };
+
+  const handleApproveWithRole = async () => {
+    if (!approvingUser) return;
+    setIsApprovingWithRole(true);
+    try {
+      const res = await fetch(`/api/admin/users/${approvingUser.id}/approve`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ role: approveRoleDraft }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Erreur lors de la validation');
+      updateUserInState(data.user);
+      setApprovingUser(null);
+    } catch (err: any) {
+      setModalError(err.message);
+    } finally {
+      setIsApprovingWithRole(false);
+    }
+  };
+
+  const handleRejectUser = async () => {
+    if (!userToReject) return;
+    setIsRejecting(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userToReject.id}/reject`, {
+        method: 'PUT',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Erreur lors du refus');
+      setUsers((prev) => prev.filter((u) => u.id !== userToReject.id));
+      setUserToReject(null);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -136,183 +285,434 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <ShieldAlert className="text-emerald-600 w-8 h-8" />
-            Administration Plateforme
-          </h1>
-          <p className="text-gray-500 mt-2">Gérez les accès et les rôles des utilisateurs de la plateforme ESG.</p>
-        </div>
-        
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="flex flex-col items-center px-4 border-r border-gray-100">
-            <span className="text-2xl font-black text-gray-800">{users.length}</span>
-            <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total</span>
+    <div className="min-h-full bg-[radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_28%),radial-gradient(circle_at_0%_0%,_rgba(15,23,42,0.05),_transparent_30%),linear-gradient(to_bottom,_#f8fafc,_#ffffff)] px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="mb-8 flex flex-col gap-4 rounded-3xl border border-emerald-100 bg-white/85 p-6 shadow-[0_20px_80px_-30px_rgba(15,23,42,0.2)] backdrop-blur sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-2xl">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
+              <ShieldAlert className="h-3.5 w-3.5" />
+              Administration
+            </div>
+            <h1 className="flex items-center gap-3 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
+              Administration Plateforme
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
+              Gérez les accès, rôles et statuts des utilisateurs depuis une interface plus claire,
+              avec des actions regroupées dans une modale dédiée.
+            </p>
           </div>
-          <div className="flex flex-col items-center px-4">
-            <span className="text-2xl font-black text-emerald-600">
-              {users.filter(u => u.role === 'admin').length}
-            </span>
-            <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Admins</span>
+
+          <div className="grid grid-cols-2 gap-3 sm:min-w-[280px]">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-center shadow-sm">
+              <span className="block text-3xl font-black text-slate-900">{users.length}</span>
+              <span className="mt-1 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Total</span>
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-center shadow-sm">
+              <span className="block text-3xl font-black text-emerald-700">
+                {users.filter((entry) => entry.role === 'admin').length}
+              </span>
+              <span className="mt-1 block text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700/80">Admins</span>
+            </div>
           </div>
         </div>
-      </div>
 
       {error && (
-        <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-6 border border-red-100">
+        <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-red-700 shadow-sm">
           {error}
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-          <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-            <Users className="w-5 h-5 text-gray-500" />
-            Liste des Utilisateurs
-          </h2>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Rechercher par nom ou email..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none w-64 transition-all"
-            />
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_20px_70px_-35px_rgba(15,23,42,0.25)]">
+          <div className="flex flex-col gap-4 border-b border-slate-100 bg-slate-50/80 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
+              <Users className="h-5 w-5 text-emerald-600" />
+              Liste des utilisateurs
+            </h2>
+            <div className="relative w-full sm:w-80">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Rechercher par nom ou email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+              />
+            </div>
+          </div>
+          <div className="overflow-hidden">
+            <table className="w-full text-left">
+              <thead className="border-b border-slate-100 bg-white/90">
+                <tr>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Utilisateur</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Email</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Rôle</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Statut</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Date d'inscription</th>
+                  <th className="px-4 py-4 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredUsers.map((entry) => (
+                  <tr key={entry.id} className="transition-colors hover:bg-slate-50/70">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="font-semibold text-slate-900">{entry.name}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                      {entry.email}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                        entry.role === 'admin'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : entry.role === 'non_attribue'
+                          ? 'border-amber-200 bg-amber-50 text-amber-700'
+                          : 'border-slate-200 bg-slate-100 text-slate-700'
+                      }`}>
+                        {getRoleLabel(entry.role)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex flex-col gap-1.5">
+                        {entry.is_blocked ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+                            <Ban className="h-3.5 w-3.5" /> Bloqué
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                            <CheckCircle className="h-3.5 w-3.5" /> Actif
+                          </span>
+                        )}
+                        {!entry.is_approved && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
+                            <MailCheck className="h-3.5 w-3.5" /> En attente admin
+                          </span>
+                        )}
+                        {entry.is_approved && !entry.is_verified && (
+                          <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                            En attente
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                      {new Date(entry.created_at).toLocaleDateString('fr-FR')}
+                    </td>
+                    <td className="px-4 py-4 text-right text-sm font-medium">
+                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        {!entry.is_approved && (
+                          <>
+                            <button
+                              onClick={() => { setApprovingUser(entry); setApproveRoleDraft('metier'); setModalError(null); }}
+                              className="inline-flex h-8 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-medium text-emerald-700 transition-all hover:bg-emerald-100"
+                              title="Valider et attribuer un rôle"
+                            >
+                              <MailCheck className="mr-1 h-3.5 w-3.5" />
+                              Valider
+                            </button>
+                            <button
+                              onClick={() => setUserToReject(entry)}
+                              className="inline-flex h-8 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-2.5 text-xs font-medium text-red-700 transition-all hover:bg-red-100"
+                              title="Refuser la demande d'accès"
+                            >
+                              <XCircle className="mr-1 h-3.5 w-3.5" />
+                              Refuser
+                            </button>
+                          </>
+                        )}
+
+                        <button
+                          onClick={() => handleToggleBlock(entry)}
+                          disabled={user?.id === entry.id}
+                          className={`inline-flex h-8 items-center justify-center rounded-xl border px-2.5 text-xs font-medium transition-all ${
+                            user?.id === entry.id
+                              ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300'
+                              : entry.is_blocked
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                          }`}
+                          title={entry.is_blocked ? 'Débloquer le compte' : 'Bloquer le compte'}
+                        >
+                          <Ban className="mr-1 h-3.5 w-3.5" />
+                          {entry.is_blocked ? 'Débloquer' : 'Bloquer'}
+                        </button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-8 rounded-xl border-slate-200 bg-white px-2.5 text-xs text-slate-700 hover:bg-slate-50"
+                          onClick={() => openManageModal(entry)}
+                          disabled={user?.id === entry.id}
+                        >
+                          <Settings2 className="h-3.5 w-3.5" />
+                          Gérer
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+
+                {filteredUsers.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-10 text-center text-slate-500">
+                      Aucun utilisateur trouvé.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Utilisateur</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Rôle</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Statut</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date d'inscription</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredUsers.map((u) => (
-                <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="font-semibold text-gray-900">{u.name}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-600 text-sm">
-                    {u.email}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      u.role === 'admin'
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        : 'bg-gray-100 text-gray-800 border border-gray-200'
-                    }`}>
-                      {getRoleLabel(u.role)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-col gap-1">
-                      {u.is_blocked ? (
-                        <span className="px-2 py-0.5 inline-flex items-center gap-1 text-xs font-semibold rounded-full bg-red-100 text-red-700 border border-red-200">
-                          <Ban className="w-3 h-3" /> Bloqué
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 inline-flex items-center gap-1 text-xs font-semibold rounded-full bg-green-100 text-green-700 border border-green-200">
-                          <CheckCircle className="w-3 h-3" /> Actif
-                        </span>
-                      )}
-                      {!u.is_approved && (
-                        <span className="px-2 py-0.5 inline-flex items-center gap-1 text-xs font-semibold rounded-full bg-sky-100 text-sky-700 border border-sky-200">
-                          <MailCheck className="w-3 h-3" /> En attente admin
-                        </span>
-                      )}
-                      {u.is_approved && !u.is_verified && (
-                        <span className="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                          En attente
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(u.created_at).toLocaleDateString('fr-FR')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end gap-3">
-                      {!u.is_approved && (
-                        <button
-                          onClick={() => handleApproveUser(u.id)}
-                          disabled={user?.id === u.id}
-                          className={`p-2 rounded-lg transition-colors ${
-                            user?.id === u.id
-                              ? 'opacity-30 cursor-not-allowed'
-                              : 'hover:bg-sky-50 text-sky-600 hover:text-sky-700'
-                          }`}
-                          title="Valider et envoyer l’e-mail d’activation"
-                        >
-                          <MailCheck className="w-5 h-5" />
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => handleToggleBlock(u.id, u.is_blocked)}
-                        disabled={user?.id === u.id}
-                        className={`p-2 rounded-lg transition-colors ${
-                          user?.id === u.id
-                            ? 'opacity-30 cursor-not-allowed'
-                            : u.is_blocked
-                              ? 'hover:bg-green-50 text-red-500 hover:text-green-600'
-                              : 'hover:bg-red-50 text-gray-400 hover:text-red-500'
-                        }`}
-                        title={u.is_blocked ? 'Débloquer le compte' : 'Bloquer le compte'}
-                      >
-                        <Ban className="w-5 h-5" />
-                      </button>
-
-                      <button
-                        onClick={() => handleToggleRole(u.id, u.role)}
-                        disabled={user?.id === u.id}
-                        className={`p-2 rounded-lg transition-colors ${
-                          user?.id === u.id
-                            ? 'opacity-30 cursor-not-allowed'
-                            : 'hover:bg-gray-100 text-gray-600 hover:text-emerald-600'
-                        }`}
-                        title={u.role === 'admin' ? 'Rétrograder vers un profil métier' : 'Changer de profil'}
-                      >
-                        {u.role === 'admin' ? <UserCheck className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
-                      </button>
-
-                      <button
-                        onClick={() => handleDelete(u.id)}
-                        disabled={user?.id === u.id}
-                        className={`p-2 rounded-lg transition-colors ${
-                          user?.id === u.id
-                            ? 'opacity-30 cursor-not-allowed'
-                            : 'hover:bg-red-50 text-gray-400 hover:text-red-600'
-                        }`}
-                        title="Supprimer le compte"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              
-              {filteredUsers.length === 0 && (
-                <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                    Aucun utilisateur trouvé.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
       </div>
+
+      <Dialog open={Boolean(selectedUser)} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedUser(null);
+          setModalError(null);
+        }
+      }}>
+        <DialogContent className="max-w-2xl rounded-3xl border-slate-200 bg-white p-0 shadow-2xl">
+          {selectedUser && (
+            <div className="p-6 sm:p-7">
+              <DialogHeader className="text-left">
+                <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">
+                  Gérer {selectedUser.name}
+                </DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-slate-600">
+                  Choisissez un rôle, puis appliquez les actions de compte depuis cette fenêtre.
+                </DialogDescription>
+              </DialogHeader>
+
+              {modalError && (
+                <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {modalError}
+                </div>
+              )}
+
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Compte</p>
+                  <div className="mt-2 space-y-1 text-sm text-slate-700">
+                    <p className="font-semibold text-slate-900">{selectedUser.email}</p>
+                    <p>Rôle actuel: {getRoleLabel(selectedUser.role)}</p>
+                    <p>
+                      Statut: {selectedUser.is_blocked ? 'Bloqué' : 'Actif'}
+                      {selectedUser.is_approved ? ' · Approuvé' : ' · En attente'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Changer le rôle</p>
+                  <div className="mt-3">
+                    <Select value={roleDraft} onValueChange={setRoleDraft}>
+                      <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white">
+                        <SelectValue placeholder="Sélectionner un rôle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ROLE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    Le rôle sélectionné sera appliqué au compte après enregistrement.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  <Building2 className="mr-1.5 inline h-3.5 w-3.5" />
+                  Assigner une entreprise
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Visible uniquement pour le rôle <span className="font-medium text-slate-600">Utilisateur métier</span>.
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <Select value={companyDraft} onValueChange={setCompanyDraft}>
+                    <SelectTrigger className="h-11 flex-1 rounded-xl border-slate-200 bg-white">
+                      <SelectValue placeholder="Sélectionner une entreprise" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Aucune entreprise —</SelectItem>
+                      {companies.map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    onClick={handleAssignCompany}
+                    disabled={
+                      isSavingCompany ||
+                      companyDraft === (selectedUser.company_id != null ? String(selectedUser.company_id) : 'none')
+                    }
+                    className="h-11 rounded-xl bg-slate-700 text-white hover:bg-slate-800"
+                  >
+                    {isSavingCompany ? 'Enregistrement...' : 'Appliquer'}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <Button
+                  type="button"
+                  onClick={handleSaveRole}
+                  disabled={isSavingRole || roleDraft === selectedUser.role}
+                  className="h-11 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  {isSavingRole ? 'Enregistrement...' : 'Enregistrer le rôle'}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleToggleBlock(selectedUser)}
+                  disabled={selectedUser.id === user?.id}
+                  className="h-11 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+                >
+                  <Ban className="h-4 w-4" />
+                  {selectedUser.is_blocked ? 'Débloquer' : 'Bloquer'}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setUserToDelete(selectedUser)}
+                  disabled={selectedUser.id === user?.id}
+                  className="h-11 rounded-xl"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Supprimer
+                </Button>
+              </div>
+
+              <DialogFooter className="mt-6 sm:justify-between">
+                <p className="text-xs text-slate-500">
+                  Astuce: utilisez la modale pour éviter les changements accidentels.
+                </p>
+                <Button type="button" variant="outline" onClick={() => setSelectedUser(null)} className="h-11 rounded-xl">
+                  Fermer
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog : Valider avec rôle ─────────────────────────────────────── */}
+      <AlertDialog open={Boolean(approvingUser)} onOpenChange={(open) => { if (!open) setApprovingUser(null); }}>
+        <AlertDialogContent className="rounded-3xl border-slate-200">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-left text-xl font-black text-slate-900">
+              Valider le compte de {approvingUser?.name}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left text-sm text-slate-600">
+              Attribuez un rôle avant de valider. L'utilisateur recevra un e-mail d'activation.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {modalError && (
+            <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">
+              {modalError}
+            </div>
+          )}
+
+          <div className="mt-2">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Rôle à attribuer</p>
+            <Select value={approveRoleDraft} onValueChange={setApproveRoleDraft}>
+              <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white">
+                <SelectValue placeholder="Sélectionner un rôle" />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <AlertDialogFooter className="mt-2">
+            <AlertDialogCancel className="rounded-xl" onClick={() => setApprovingUser(null)}>
+              Annuler
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+              onClick={(e) => { e.preventDefault(); void handleApproveWithRole(); }}
+              disabled={isApprovingWithRole}
+            >
+              <MailCheck className="mr-2 h-4 w-4" />
+              {isApprovingWithRole ? 'Validation...' : 'Valider le compte'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Dialog : Refuser ──────────────────────────────────────────────── */}
+      <AlertDialog open={Boolean(userToReject)} onOpenChange={(open) => { if (!open) setUserToReject(null); }}>
+        <AlertDialogContent className="rounded-3xl border-slate-200">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-left text-xl font-black text-slate-900">
+              Refuser la demande d'accès ?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left text-sm leading-6 text-slate-600">
+              {userToReject
+                ? `La demande de ${userToReject.name} (${userToReject.email}) sera rejetée et le compte supprimé définitivement.`
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-red-600 text-white hover:bg-red-700"
+              onClick={(e) => { e.preventDefault(); void handleRejectUser(); }}
+              disabled={isRejecting}
+            >
+              <XCircle className="mr-2 h-4 w-4" />
+              {isRejecting ? 'Refus en cours...' : 'Refuser définitivement'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={Boolean(userToDelete)} onOpenChange={(open) => {
+        if (!open) {
+          setUserToDelete(null);
+        }
+      }}>
+        <AlertDialogContent className="rounded-3xl border-slate-200">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-left text-2xl font-black text-slate-900">
+              Supprimer ce compte ?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left text-sm leading-6 text-slate-600">
+              {userToDelete
+                ? `${userToDelete.name} (${userToDelete.email}) sera supprimé définitivement. Les historiques liés seront détachés avant la suppression pour éviter une erreur serveur.`
+                : 'Cette action est irréversible.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-red-600 text-white hover:bg-red-700"
+              onClick={(event) => {
+                event.preventDefault();
+                if (userToDelete) {
+                  void handleDelete(userToDelete);
+                }
+              }}
+            >
+              Supprimer définitivement
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

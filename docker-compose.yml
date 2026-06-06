@@ -1,27 +1,4 @@
 services:
-  # Optional Postfix relay (enable with: docker compose --profile postfix up)
-  postfix:
-    profiles: ["postfix"]
-    build:
-      context: ./postfix
-    container_name: postfix
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      - POSTFIX_MYHOSTNAME=${POSTFIX_MYHOSTNAME:-postfix.local}
-      - POSTFIX_MYNETWORKS=${POSTFIX_MYNETWORKS:-127.0.0.0/8 [::1]/128 172.16.0.0/12}
-      - POSTFIX_RELAY_HOST=${POSTFIX_RELAY_HOST:-[smtp.gmail.com]:587}
-      - GMAIL_USER=${GMAIL_USER:-}
-      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD:-}
-    expose:
-      - "25"
-    volumes:
-      - postfix_queue:/var/spool/postfix
-      - postfix_logs:/var/log/postfix
-    networks:
-      - esg-network
-
   # PostgreSQL database for authentication
   postgres:
     image: postgres:16-alpine
@@ -85,7 +62,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "5050:5050"
+      - "5001:5001"
     networks:
       - esg-network
 
@@ -105,8 +82,6 @@ services:
 
 volumes:
   postgres_data:
-  postfix_queue:
-  postfix_logs:
 
 networks:
   esg-network:

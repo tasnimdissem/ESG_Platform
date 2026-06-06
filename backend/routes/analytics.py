@@ -10,6 +10,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from backend.extensions import db
 from backend.models.prediction import PredictionHistory
+from backend.models.user import User
 from backend.services.ml_service import ml_service_instance
 
 
@@ -47,11 +48,41 @@ def _empty_summary() -> dict[str, Any]:
 @jwt_required()
 def analytics_summary() -> object:
     user_id = get_jwt_identity()
-    history = (
-        PredictionHistory.query.filter_by(user_id=user_id)
-        .order_by(PredictionHistory.created_at.asc())
-        .all()
-    )
+    try:
+        current_user = db.session.get(User, int(user_id))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Identité du jeton invalide'}), 401
+
+    if current_user is None:
+        return jsonify({'error': 'Utilisateur introuvable'}), 401
+
+    if current_user.role not in ('admin', 'decideur', 'metier'):
+        return jsonify({'error': 'Accès refusé. Réservé aux décideurs, utilisateurs métier et administrateurs.'}), 403
+
+    if current_user.role == 'admin':
+        history = (
+            PredictionHistory.query
+            .order_by(PredictionHistory.created_at.asc())
+            .all()
+        )
+    else:
+        # decideur/metier : données de leur entreprise (tous les utilisateurs de la même entreprise)
+        if current_user.company_id:
+            company_user_ids = [
+                u.id for u in User.query.filter_by(company_id=current_user.company_id).all()
+            ]
+            history = (
+                PredictionHistory.query
+                .filter(PredictionHistory.user_id.in_(company_user_ids))
+                .order_by(PredictionHistory.created_at.asc())
+                .all()
+            )
+        else:
+            history = (
+                PredictionHistory.query.filter_by(user_id=user_id)
+                .order_by(PredictionHistory.created_at.asc())
+                .all()
+            )
 
     if len(history) < 2:
         return jsonify(_empty_summary()), 200

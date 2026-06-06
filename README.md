@@ -44,7 +44,7 @@ The platform is built using a modern 3-tier architecture:
 - **Database**: SQLite / PostgreSQL (SQLAlchemy)
 - **RAG Engine**: FAISS, LangChain
 - **Embeddings**: Sentence-Transformers (`all-MiniLM-L6-v2`)
-- **LLM Integration**: Groq (Llama), OpenAI (GPT-4o), or local Ollama
+- **LLM Integration**: Groq (Llama), OpenAI (GPT-4o),
 
 ---
 
@@ -80,7 +80,7 @@ cp .env.example .env
 
 **Key Environment Variables:**
 - `RAG_API_BASE_URL`: URL where the RAG service is running (default: `http://localhost:8000`)
-- `GROQ_API_KEY`: Required for LLM synthesis (optional if using OpenAI or Ollama)
+- `GROQ_API_KEY`: Required for LLM synthesis (optional if using OpenAI)
 - `DATABASE_URL`: Your database connection string
 
 ---

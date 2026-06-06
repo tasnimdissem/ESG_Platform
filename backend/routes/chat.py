@@ -5,6 +5,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from backend.extensions import db
 from backend.models.chat import ChatConversation, ChatMessage
+from backend.models.user import User
 
 chat_bp = Blueprint('chat', __name__)
 
@@ -17,13 +18,24 @@ def _current_user_id() -> int | None:
         return None
 
 
-@chat_bp.get('/conversations')
-@jwt_required(optional=True)
-def list_conversations() -> object:
-    user_id = _current_user_id()
-    if user_id is None:
-        return jsonify([])
+def _check_chat_access() -> tuple[object, int] | None:
+    """Returns a 403 response if the user is not allowed to use the chatbot."""
+    uid = _current_user_id()
+    if uid is None:
+        return jsonify({'error': 'Identité du jeton invalide'}), 401
+    user = db.session.get(User, uid)
+    if user is None or user.role not in ('admin', 'metier'):
+        return jsonify({'error': 'Accès refusé. Le chatbot est réservé aux experts métier et administrateurs.'}), 403
+    return None
 
+
+@chat_bp.get('/conversations')
+@jwt_required()
+def list_conversations() -> object:
+    denied = _check_chat_access()
+    if denied is not None:
+        return denied
+    user_id = _current_user_id()
     conversations = (
         ChatConversation.query.filter_by(user_id=user_id)
         .order_by(ChatConversation.created_at.desc())
@@ -35,6 +47,9 @@ def list_conversations() -> object:
 @chat_bp.post('/conversations')
 @jwt_required()
 def create_conversation() -> object:
+    denied = _check_chat_access()
+    if denied is not None:
+        return denied
     user_id = _current_user_id()
     if user_id is None:
         return jsonify({'error': 'Identité du jeton invalide'}), 401
@@ -52,6 +67,9 @@ def create_conversation() -> object:
 @chat_bp.get('/conversations/<int:conv_id>')
 @jwt_required()
 def get_conversation(conv_id: int) -> object:
+    denied = _check_chat_access()
+    if denied is not None:
+        return denied
     user_id = _current_user_id()
     if user_id is None:
         return jsonify({'error': 'Identité du jeton invalide'}), 401
@@ -64,6 +82,9 @@ def get_conversation(conv_id: int) -> object:
 @chat_bp.post('/conversations/<int:conv_id>/messages')
 @jwt_required()
 def add_message(conv_id: int) -> object:
+    denied = _check_chat_access()
+    if denied is not None:
+        return denied
     user_id = _current_user_id()
     if user_id is None:
         return jsonify({'error': 'Identité du jeton invalide'}), 401
@@ -96,6 +117,9 @@ def add_message(conv_id: int) -> object:
 @chat_bp.delete('/conversations/<int:conv_id>')
 @jwt_required()
 def delete_conversation(conv_id: int) -> object:
+    denied = _check_chat_access()
+    if denied is not None:
+        return denied
     user_id = _current_user_id()
     if user_id is None:
         return jsonify({'error': 'Identité du jeton invalide'}), 401

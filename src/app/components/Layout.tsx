@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { FloatingChatbot } from './FloatingChatbot';
 
 export default function Layout() {
   return (
@@ -12,6 +13,7 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      <FloatingChatbot />
     </div>
   );
 }
