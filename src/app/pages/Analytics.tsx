@@ -1,5 +1,6 @@
 // La page Analytics récupère maintenant les données ESG en direct depuis le backend afin que les graphiques reflètent l'historique de prédictions CatBoost au lieu de valeurs de démonstration statiques.
 import { useEffect, useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
 import { Download, TrendingUp } from 'lucide-react';
 
@@ -61,6 +62,7 @@ function formatImportanceLabel(value: unknown) {
 }
 
 export default function Analytics() {
+  const { user } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState('12m');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsSummary>(emptySummary);
   const [isLoading, setIsLoading] = useState(true);
@@ -190,7 +192,12 @@ export default function Analytics() {
     URL.revokeObjectURL(url);
   };
 
-  const isEmptyState = !isLoading && analyticsData.nb_predictions < 2;
+  const isEmptyState = !isLoading && analyticsData.nb_predictions === 0;
+  const emptyStateMessage = user?.role === 'decideur'
+    ? "Aucune prédiction ESG n'a encore été effectuée pour votre entreprise."
+    : user?.role === 'admin'
+    ? 'Aucune prédiction enregistrée sur la plateforme.'
+    : 'Aucune prédiction enregistrée. Utilisez le calculateur ESG pour commencer.';
 
   function VariableImportanceTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: (typeof topVariables)[number] }> }) {
     if (!active || !payload?.length) {
@@ -212,7 +219,7 @@ export default function Analytics() {
 
   if (isLoading) {
     return (
-      <div className="p-8 space-y-8 bg-gray-50 min-h-screen animate-pulse">
+      <div className="p-4 md:p-8 space-y-8 bg-gray-50 min-h-screen animate-pulse">
         <div className="flex items-center justify-between">
           <div className="space-y-3">
             <div className="h-8 w-80 rounded bg-gray-200" />
@@ -238,9 +245,9 @@ export default function Analytics() {
   }
 
   return (
-    <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
+    <div className="p-4 md:p-8 space-y-8 bg-gray-50 min-h-screen">
       {/* Header with Filters */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Analyses ESG détaillées</h1>
           <p className="text-gray-600">Analyse en temps réel basée sur l’historique CatBoost de la plateforme.</p>
@@ -274,7 +281,7 @@ export default function Analytics() {
 
       {isEmptyState ? (
         <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-500">
-          Aucune prédiction enregistrée, utilisez le calculateur pour commencer.
+          {emptyStateMessage}
         </div>
       ) : (
         <>

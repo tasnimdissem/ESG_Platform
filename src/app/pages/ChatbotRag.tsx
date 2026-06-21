@@ -288,17 +288,15 @@ export default function ChatbotRag() {
   };
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
+    <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-1">ESGénie</h1>
-            <p className="text-gray-500 text-sm">
-              Assistant RAG · Session <span className="font-mono text-xs">{sessionId.slice(0, 8)}</span>
-            </p>
+
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => void handleNewConversation()}
               title="Nouvelle conversation"
@@ -340,7 +338,7 @@ export default function ChatbotRag() {
           {/* Chat window */}
           <div
             className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col"
-            style={{ height: '700px' }}
+            style={{ height: 'min(700px, 80vh)' }}
           >
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">

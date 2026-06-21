@@ -58,11 +58,11 @@ export default function Register() {
       <div className="w-full max-w-6xl grid md:grid-cols-2 gap-8 items-center">
         <div className="text-white space-y-6">
           <div className="flex items-center gap-3">
-            <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center">
+            <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center flex-shrink-0">
               <Leaf className="w-10 h-10" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold">ESG Predictor</h1>
+              <h1 className="text-3xl md:text-4xl font-bold">ESG Predictor</h1>
               <p className="text-emerald-200">Créez votre compte</p>
             </div>
           </div>
@@ -71,7 +71,7 @@ export default function Register() {
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8">
           <h2 className="text-2xl font-bold mb-2">Créer un compte</h2>
           <p className="text-gray-600 mb-8">Inscription rapide pour la plateforme ESG.</p>
 

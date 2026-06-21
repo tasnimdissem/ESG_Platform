@@ -150,16 +150,16 @@ export default function Companies() {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
+    <div className="p-4 md:p-6">
+      <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-2xl font-bold">Mes entreprises</h2>
           <div className="relative">
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Rechercher une entreprise..."
-              className="pl-3 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+              className="pl-3 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm w-full sm:w-auto"
             />
           </div>
         </div>
@@ -279,7 +279,7 @@ export default function Companies() {
             return nameMatch || scoreMatch;
           })
           .map((c) => (
-          <div key={c.entreprise_id} className="p-4 border border-slate-200 rounded-md flex items-center justify-between gap-4 hover:bg-slate-50">
+          <div key={c.entreprise_id} className="p-4 border border-slate-200 rounded-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50">
             <div>
               <div className="font-semibold text-slate-900">{c.nom}</div>
               <div className="text-xs text-slate-500">

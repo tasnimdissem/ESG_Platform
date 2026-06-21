@@ -339,7 +339,104 @@ export default function AdminDashboard() {
               />
             </div>
           </div>
-          <div className="overflow-hidden">
+
+          {/* ── Mobile : cards ──────────────────────────────────────────────── */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {filteredUsers.length === 0 ? (
+              <p className="px-5 py-10 text-center text-sm text-slate-500">Aucun utilisateur trouvé.</p>
+            ) : (
+              filteredUsers.map((entry) => (
+                <div key={entry.id} className="p-4 space-y-3">
+                  {/* Header : nom + rôle */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900 truncate">{entry.name}</p>
+                      <p className="text-xs text-slate-500 truncate mt-0.5">{entry.email}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{new Date(entry.created_at).toLocaleDateString('fr-FR')}</p>
+                    </div>
+                    <span className={`shrink-0 inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                      entry.role === 'admin'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : entry.role === 'non_attribue'
+                        ? 'border-amber-200 bg-amber-50 text-amber-700'
+                        : 'border-slate-200 bg-slate-100 text-slate-700'
+                    }`}>
+                      {getRoleLabel(entry.role)}
+                    </span>
+                  </div>
+
+                  {/* Statut badges */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {entry.is_blocked ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+                        <Ban className="h-3 w-3" /> Bloqué
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                        <CheckCircle className="h-3 w-3" /> Actif
+                      </span>
+                    )}
+                    {!entry.is_approved && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
+                        <MailCheck className="h-3 w-3" /> En attente admin
+                      </span>
+                    )}
+                    {entry.is_approved && !entry.is_verified && (
+                      <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                        En attente vérification
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Boutons d'action */}
+                  <div className="flex flex-wrap gap-2">
+                    {!entry.is_approved && (
+                      <>
+                        <button
+                          onClick={() => { setApprovingUser(entry); setApproveRoleDraft('metier'); setModalError(null); }}
+                          className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 transition-all hover:bg-emerald-100"
+                        >
+                          <MailCheck className="h-3.5 w-3.5" /> Valider
+                        </button>
+                        <button
+                          onClick={() => setUserToReject(entry)}
+                          className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-medium text-red-700 transition-all hover:bg-red-100"
+                        >
+                          <XCircle className="h-3.5 w-3.5" /> Refuser
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => handleToggleBlock(entry)}
+                      disabled={user?.id === entry.id}
+                      className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-all ${
+                        user?.id === entry.id
+                          ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300'
+                          : entry.is_blocked
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                            : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                      }`}
+                    >
+                      <Ban className="h-3.5 w-3.5" />
+                      {entry.is_blocked ? 'Débloquer' : 'Bloquer'}
+                    </button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 rounded-xl border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50"
+                      onClick={() => openManageModal(entry)}
+                      disabled={user?.id === entry.id}
+                    >
+                      <Settings2 className="h-3.5 w-3.5 mr-1.5" /> Gérer
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* ── Desktop : table ──────────────────────────────────────────────── */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left">
               <thead className="border-b border-slate-100 bg-white/90">
                 <tr>
@@ -470,76 +567,62 @@ export default function AdminDashboard() {
           setModalError(null);
         }
       }}>
-        <DialogContent className="max-w-2xl rounded-3xl border-slate-200 bg-white p-0 shadow-2xl">
+        <DialogContent className="max-w-sm rounded-2xl border-slate-200 bg-white p-5 shadow-xl">
           {selectedUser && (
-            <div className="p-6 sm:p-7">
-              <DialogHeader className="text-left">
-                <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">
-                  Gérer {selectedUser.name}
+            <>
+              <DialogHeader className="text-left mb-1">
+                <DialogTitle className="text-base font-bold text-slate-900 leading-tight">
+                  {selectedUser.name}
                 </DialogTitle>
-                <DialogDescription className="mt-1 text-sm text-slate-600">
-                  Choisissez un rôle, puis appliquez les actions de compte depuis cette fenêtre.
+                <DialogDescription className="text-xs text-slate-400 truncate">
+                  {selectedUser.email}
                 </DialogDescription>
               </DialogHeader>
 
               {modalError && (
-                <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
                   {modalError}
                 </div>
               )}
 
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Compte</p>
-                  <div className="mt-2 space-y-1 text-sm text-slate-700">
-                    <p className="font-semibold text-slate-900">{selectedUser.email}</p>
-                    <p>Rôle actuel: {getRoleLabel(selectedUser.role)}</p>
-                    <p>
-                      Statut: {selectedUser.is_blocked ? 'Bloqué' : 'Actif'}
-                      {selectedUser.is_approved ? ' · Approuvé' : ' · En attente'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Changer le rôle</p>
-                  <div className="mt-3">
-                    <Select value={roleDraft} onValueChange={setRoleDraft}>
-                      <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white">
-                        <SelectValue placeholder="Sélectionner un rôle" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ROLE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    Le rôle sélectionné sera appliqué au compte après enregistrement.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  <Building2 className="mr-1.5 inline h-3.5 w-3.5" />
-                  Assigner une entreprise
-                </p>
-                <p className="mt-1 text-xs text-slate-400">
-                  Visible uniquement pour le rôle <span className="font-medium text-slate-600">Utilisateur métier</span>.
-                </p>
-                <div className="mt-3 flex gap-2">
-                  <Select value={companyDraft} onValueChange={setCompanyDraft}>
-                    <SelectTrigger className="h-11 flex-1 rounded-xl border-slate-200 bg-white">
-                      <SelectValue placeholder="Sélectionner une entreprise" />
+              <div className="space-y-3 mt-1">
+                {/* Rôle */}
+                <div className="flex items-center gap-2">
+                  <span className="w-20 shrink-0 text-xs font-medium text-slate-500">Rôle</span>
+                  <Select value={roleDraft} onValueChange={setRoleDraft}>
+                    <SelectTrigger className="h-8 flex-1 rounded-lg border-slate-200 bg-slate-50 text-xs">
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">— Aucune entreprise —</SelectItem>
+                      {ROLE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value} className="text-xs">
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveRole}
+                    disabled={isSavingRole || roleDraft === selectedUser.role}
+                    className="h-8 rounded-lg bg-emerald-600 px-3 text-xs text-white hover:bg-emerald-700 shrink-0"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+
+                {/* Entreprise */}
+                <div className="flex items-center gap-2">
+                  <span className="w-20 shrink-0 text-xs font-medium text-slate-500">Entreprise</span>
+                  <Select value={companyDraft} onValueChange={setCompanyDraft}>
+                    <SelectTrigger className="h-8 flex-1 rounded-lg border-slate-200 bg-slate-50 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none" className="text-xs">— Aucune —</SelectItem>
                       {companies.map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)}>
+                        <SelectItem key={c.id} value={String(c.id)} className="text-xs">
                           {c.name}
                         </SelectItem>
                       ))}
@@ -547,61 +630,45 @@ export default function AdminDashboard() {
                   </Select>
                   <Button
                     type="button"
+                    size="sm"
                     onClick={handleAssignCompany}
                     disabled={
                       isSavingCompany ||
                       companyDraft === (selectedUser.company_id != null ? String(selectedUser.company_id) : 'none')
                     }
-                    className="h-11 rounded-xl bg-slate-700 text-white hover:bg-slate-800"
+                    className="h-8 rounded-lg bg-slate-700 px-3 text-xs text-white hover:bg-slate-800 shrink-0"
                   >
-                    {isSavingCompany ? 'Enregistrement...' : 'Appliquer'}
+                    <Building2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <Button
-                  type="button"
-                  onClick={handleSaveRole}
-                  disabled={isSavingRole || roleDraft === selectedUser.role}
-                  className="h-11 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
-                >
-                  <ShieldCheck className="h-4 w-4" />
-                  {isSavingRole ? 'Enregistrement...' : 'Enregistrer le rôle'}
-                </Button>
-
+              {/* Actions destructives */}
+              <div className="mt-4 flex gap-2 border-t border-slate-100 pt-4">
                 <Button
                   type="button"
                   variant="outline"
+                  size="sm"
                   onClick={() => handleToggleBlock(selectedUser)}
                   disabled={selectedUser.id === user?.id}
-                  className="h-11 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+                  className="flex-1 h-8 rounded-lg border-slate-200 text-xs text-slate-700 hover:bg-slate-50"
                 >
-                  <Ban className="h-4 w-4" />
+                  <Ban className="h-3.5 w-3.5 mr-1" />
                   {selectedUser.is_blocked ? 'Débloquer' : 'Bloquer'}
                 </Button>
-
                 <Button
                   type="button"
                   variant="destructive"
+                  size="sm"
                   onClick={() => setUserToDelete(selectedUser)}
                   disabled={selectedUser.id === user?.id}
-                  className="h-11 rounded-xl"
+                  className="flex-1 h-8 rounded-lg text-xs"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
                   Supprimer
                 </Button>
               </div>
-
-              <DialogFooter className="mt-6 sm:justify-between">
-                <p className="text-xs text-slate-500">
-                  Astuce: utilisez la modale pour éviter les changements accidentels.
-                </p>
-                <Button type="button" variant="outline" onClick={() => setSelectedUser(null)} className="h-11 rounded-xl">
-                  Fermer
-                </Button>
-              </DialogFooter>
-            </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

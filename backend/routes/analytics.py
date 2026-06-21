@@ -1,7 +1,6 @@
 # Analytics summary endpoint: aggregates CatBoost prediction history so the frontend can render live ESG trends instead of static demo data.
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 import pandas as pd
@@ -66,25 +65,29 @@ def analytics_summary() -> object:
             .all()
         )
     else:
-        # decideur/metier : données de leur entreprise (tous les utilisateurs de la même entreprise)
+        # decideur/metier : prédictions de leur entreprise + prédictions des admins (plateforme-wide)
+        admin_ids = [u.id for u in User.query.filter_by(role='admin').all()]
         if current_user.company_id:
             company_user_ids = [
                 u.id for u in User.query.filter_by(company_id=current_user.company_id).all()
             ]
+            relevant_ids = list(set(company_user_ids + admin_ids))
             history = (
                 PredictionHistory.query
-                .filter(PredictionHistory.user_id.in_(company_user_ids))
+                .filter(PredictionHistory.user_id.in_(relevant_ids))
                 .order_by(PredictionHistory.created_at.asc())
                 .all()
             )
         else:
+            relevant_ids = list(set([int(user_id)] + admin_ids))
             history = (
-                PredictionHistory.query.filter_by(user_id=user_id)
+                PredictionHistory.query
+                .filter(PredictionHistory.user_id.in_(relevant_ids))
                 .order_by(PredictionHistory.created_at.asc())
                 .all()
             )
 
-    if len(history) < 2:
+    if len(history) == 0:
         return jsonify(_empty_summary()), 200
 
     rows: list[dict[str, Any]] = []

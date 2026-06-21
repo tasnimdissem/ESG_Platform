@@ -27,15 +27,16 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 flex flex-col items-center justify-between p-4">
+      <div className="flex-1 flex items-center justify-center w-full py-8">
       <div className="w-full max-w-6xl grid md:grid-cols-2 gap-8 items-center">
         <div className="text-white space-y-6">
           <div className="flex items-center gap-3">
-            <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center">
+            <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center flex-shrink-0">
               <Leaf className="w-10 h-10" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold">Plateforme ESG</h1>
+              <h1 className="text-3xl md:text-4xl font-bold">Plateforme ESG</h1>
               <p className="text-emerald-200">Intelligence & Prédiction ESG</p>
             </div>
           </div>
@@ -76,19 +77,9 @@ export default function Login() {
             </div>
           </div>
 
-          {/* Tritux badge */}
-          <div className="pt-8 mt-4 border-t border-emerald-700/50">
-            <p className="text-xs text-emerald-400 mb-2">Projet de fin d'études réalisé chez</p>
-            <div className="flex items-center gap-3">
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2 flex items-center gap-3 border border-white/10">
-                <img src={trituxLogo} alt="Tritux" className="h-8 w-auto object-contain" />
-                <div className="text-white text-sm font-semibold">Tritux</div>
-              </div>
-            </div>
-          </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8">
           <h2 className="text-2xl font-bold mb-2">Bienvenue</h2>
           <p className="text-gray-600 mb-8">Connectez-vous pour accéder à la plateforme.</p>
 
@@ -148,6 +139,13 @@ export default function Login() {
             </Link>
           </div>
         </div>
+      </div>
+      </div>
+
+      {/* Footer powered by */}
+      <div className="w-full mt-auto pt-10 pb-6 flex flex-col items-center gap-2">
+        <span className="text-[10px] text-emerald-400 tracking-widest uppercase font-light">Powered by</span>
+        <img src={trituxLogo} alt="Tritux" className="h-10 w-auto object-contain brightness-150 opacity-90" />
       </div>
     </div>
   );

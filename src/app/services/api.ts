@@ -303,7 +303,7 @@ export async function fetchChatResponse(message: string): Promise<ChatResponse> 
 export async function fetchRecommendations(payload: RecommendationsQuery = {}): Promise<RecommendationsResponse> {
   const data = await fetchIntegration({
     client_request_id: `recommend-${Date.now()}`,
-    message: 'Provide prioritized ESG recommendations from the available context.',
+    message: 'Fournir des recommandations ESG prioritaires à partir du contexte disponible.',
     top_k: 5,
     include_recommendations: true,
     signals: {
@@ -336,6 +336,14 @@ export async function fetchPrediction(payload: PredictionPayload) {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export type CompanyLatestPrediction =
+  | { found: false }
+  | { found: true; score: number; primary_industry: string; created_at: string; features_data: Record<string, unknown>; is_admin_view?: boolean; company_name?: string | null };
+
+export async function fetchCompanyLatestPrediction(): Promise<CompanyLatestPrediction> {
+  return fetchJson<CompanyLatestPrediction>('/api/company-latest-prediction');
 }
 
 export async function fetchNewsItems(limit = 8): Promise<NewsItem[]> {

@@ -39,8 +39,17 @@ _SECTOR_DETECT_KEYWORDS: Dict[str, List[str]] = {
                 "banque", "fintech", "investment"],
     "healthcare": ["health", "healthcare", "pharma", "pharmaceutical", "medical",
                    "biotech", "hospital", "santé", "médicament"],
-    "manufacturing": ["manufacturing", "industrial", "automobile", "automotive",
-                      "steel", "chemical", "fabrication"],
+    "manufacturing": [
+        "manufacturing", "industrial", "automobile", "automotive",
+        "steel", "chemical", "fabrication",
+        # French terms
+        "manufacturier", "industriel", "usine", "acier", "sidérurgie",
+        "métallurgie", "chimique", "plasturgie", "agroalimentaire",
+        "équipement industriel", "mécanique", "assemblage", "production",
+        # Additional English
+        "machinery", "cement", "textile", "paper", "packaging", "foundry",
+        "aerospace", "defense", "mining", "construction material",
+    ],
     "retail": ["retail", "consumer", "food", "beverage", "distribution", "commerce"],
 }
 
@@ -101,10 +110,25 @@ _SECTOR_CHUNK_KEYWORDS: Dict[str, Dict[str, List[str]]] = {
         "pdf_text": ["pharmaceutical drug", "clinical trial", "patient care"],
     },
     "manufacturing": {
-        "dataset_sector": ["industrial machinery", "auto part", "auto equipment",
-                           "steel", "commodity chemical", "specialty chemical"],
-        "pdf_filename": ["manufacturing", "industrial", "automotive"],
-        "pdf_text": ["manufacturing process", "industrial production"],
+        "dataset_sector": [
+            "industrial machinery", "auto part", "auto equipment",
+            "steel", "commodity chemical", "specialty chemical",
+            "aerospace", "defense", "paper", "packaging", "textile",
+            "cement", "mining", "construction material", "foundry",
+        ],
+        "pdf_filename": [
+            "manufacturing", "industrial", "automotive", "automobile",
+            "steel", "chemical", "aerospace", "cement", "textile",
+            "machinery", "gri-manufacturing",
+        ],
+        "pdf_text": [
+            "manufacturing process", "industrial production",
+            "manufacturing sector", "industrial sector",
+            "assembly line", "production facility", "factory",
+            "supply chain manufacturing", "industrial waste",
+            "metal production", "chemical plant", "automotive production",
+            "manufacturing company", "industrial company",
+        ],
     },
     "retail": {
         "dataset_sector": ["packaged food", "food and staple", "retail", "beverage"],
@@ -350,6 +374,17 @@ class RagEngine:
                 results = sector_matched
             # else: keep results as-is; the similarity gate in answer() handles quality.
 
+        # When the caller prefers PDF context (sustainability reports, GRI, governance…),
+        # guarantee that at least half the returned slots are PDF/article chunks so they
+        # are never crowded out by the numerically dominant dataset rows.
+        if prefer_pdf:
+            pdf_results = [r for r in results if r.get("source_type") in ("pdf", "article")]
+            other_results = [r for r in results if r.get("source_type") not in ("pdf", "article")]
+            n_pdf = min(len(pdf_results), max(top_k // 2, min(4, len(pdf_results))))
+            combined = pdf_results[:n_pdf] + other_results[: top_k - n_pdf]
+            combined.sort(key=lambda x: x.get("distance", 999.0))
+            return combined[:top_k]
+
         return results[:top_k]
 
     def health(self) -> Dict[str, Any]:
@@ -467,7 +502,18 @@ class RagEngine:
             "2. Commence DIRECTEMENT par la réponse — sans formule introductive artificielle.\n"
             "3. Structure ta réponse avec des exemples concrets d'entreprises ou de secteurs réels.\n"
             "4. Sois pédagogique et synthétique : sous-titres ou listes si plusieurs domaines.\n"
-            "5. N'invente jamais de données chiffrées spécifiques non vérifiables."
+            "5. N'invente jamais de données chiffrées spécifiques non vérifiables.\n\n"
+            "NORMES GRI — RÈGLES STRICTES :\n"
+            "• Utilise EXCLUSIVEMENT les normes GRI publiées en 2021 ou après.\n"
+            "• Ne cite JAMAIS GRI 101, GRI 102 ni GRI 103 — ils sont obsolètes depuis janvier 2023 "
+            "et ont été remplacés par GRI 1, GRI 2 et GRI 3 (édition 2021).\n"
+            "• Classification officielle des piliers ESG (NE PAS déroger) :\n"
+            "  - Gouvernance (G) : GRI 2 (disclosures 2-9 à 2-29), GRI 205 Anti-corruption, "
+            "GRI 206 Anti-compétitif, GRI 207 Fiscalité, GRI 415 Politique publique.\n"
+            "  - Social (S) : série GRI 400 (GRI 401 à 419). "
+            "GRI 405 Diversité et égalité des chances est un indicateur SOCIAL, pas Gouvernance.\n"
+            "  - Environnement (E) : série GRI 300 (GRI 301 à 308).\n"
+            "• Pour chaque indicateur GRI cité, précise : numéro exact, titre officiel, pilier E/S/G."
         )
         answer = self._generate_direct(system=system, user=query)
         if answer:
@@ -494,6 +540,21 @@ class RagEngine:
             "gas",
             "totalenergies",
             "microsoft",
+            # GRI / governance signals → prefer framework documents over dataset rows
+            "gri",
+            "gouvernance",
+            "governance",
+            "tcfd",
+            "csrd",
+            "manufacturing",
+            "manufacturier",
+            "board",
+            "conseil",
+            "pilier",
+            "indicateur",
+            "norme",
+            "standard",
+            "recommandation",
         )
         return any(signal in normalized for signal in pdf_signals)
 
@@ -575,7 +636,13 @@ class RagEngine:
                 "3. Cite les valeurs numériques EXACTEMENT telles qu'elles apparaissent "
                 "— sans arrondir, sans estimer. Inclus le nom de l'entreprise, l'année et les scores pertinents.\n"
                 "4. Pour classer ou comparer des entreprises, utilise les valeurs exactes du contexte.\n"
-                "5. Si une donnée est absente du contexte, dis-le clairement sans inventer."
+                "5. Si une donnée est absente du contexte, dis-le clairement sans inventer.\n\n"
+                "NORMES GRI — RÈGLES STRICTES :\n"
+                "• Utilise EXCLUSIVEMENT les normes GRI 2021 ou ultérieures.\n"
+                "• Ne cite JAMAIS GRI 101, GRI 102, GRI 103 (obsolètes depuis janvier 2023).\n"
+                "• Piliers officiels : Gouvernance = GRI 2 + GRI 205/206/207/415 ; "
+                "Social = GRI 400 (GRI 405 Diversité = SOCIAL, pas Gouvernance) ; "
+                "Environnement = GRI 300."
             )
         else:
             system_prompt = (
@@ -591,13 +658,22 @@ class RagEngine:
                 "'D'après les documents', 'According to the documents', 'Based on the context', etc.\n"
                 "3. EXEMPLES CONCRETS : si les documents mentionnent une entreprise "
                 "(TotalEnergies, Unilever, Michelin, Microsoft…), cite ses initiatives, "
-                "indicateurs ou objectifs réels tirés du document "
-                "(ex : 'TotalEnergies vise la neutralité carbone en 2050 et a réduit ses émissions Scope 1 de X%').\n"
+                "indicateurs ou objectifs réels tirés du document.\n"
                 "4. STRUCTURE : utilise des sous-titres ou des listes à puces si la question couvre plusieurs domaines.\n"
                 "5. COMPLÉTUDE : si le contexte ne couvre pas tout, complète naturellement "
                 "avec tes connaissances générales ESG sans le signaler artificiellement.\n"
                 "6. PRÉCISION : n'invente jamais de chiffres ou données absents du contexte.\n"
-                "7. DISCRÉTION : ne révèle jamais les noms de fichiers internes, chunk IDs ou la structure technique."
+                "7. DISCRÉTION : ne révèle jamais les noms de fichiers internes, chunk IDs ou la structure technique.\n\n"
+                "NORMES GRI — RÈGLES STRICTES :\n"
+                "• Utilise EXCLUSIVEMENT les normes GRI publiées en 2021 ou après.\n"
+                "• Ne cite JAMAIS GRI 101, GRI 102 ni GRI 103 — remplacés par GRI 1, GRI 2, GRI 3 (2021). "
+                "Si les sources du contexte les mentionnent, corrige-les silencieusement avec la version 2021.\n"
+                "• Classification officielle des piliers ESG (NE PAS déroger) :\n"
+                "  - Gouvernance (G) : GRI 2 (2-9 à 2-29), GRI 205, GRI 206, GRI 207, GRI 415.\n"
+                "  - Social (S) : série GRI 400 (GRI 401-419). "
+                "GRI 405 Diversité est SOCIAL, pas Gouvernance — même si les sources l'associent au CA.\n"
+                "  - Environnement (E) : série GRI 300 (GRI 301-308).\n"
+                "• Pour chaque indicateur GRI cité, précise : numéro exact, titre officiel, pilier E/S/G."
             )
 
         user_prompt = (

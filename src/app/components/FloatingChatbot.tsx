@@ -1,9 +1,16 @@
 import { useLocation, useNavigate } from 'react-router';
 import { Bot } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export function FloatingChatbot() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const role = user?.role === 'user' ? 'decideur' : (user?.role ?? 'decideur');
+
+  // Only admin and metier have access to the chatbot
+  if (!['admin', 'metier'].includes(role)) return null;
 
   // Hide on the chatbot page itself
   if (location.pathname === '/chatbot' || location.pathname === '/chatbot-rag') return null;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { Bell, User, ExternalLink, RefreshCw } from 'lucide-react';
+import { Bell, User, ExternalLink, RefreshCw, Menu } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchNewsItems, type NewsItem } from '../services/api';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -29,7 +29,9 @@ function formatDate(dateStr: string): string {
   }
 }
 
-export function Header() {
+type HeaderProps = { onMenuToggle: () => void };
+
+export function Header({ onMenuToggle }: HeaderProps) {
   const { user } = useAuth();
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [showNews, setShowNews] = useState(false);
@@ -68,11 +70,20 @@ export function Header() {
     : newsItems.filter((item) => item.category === activeFilter);
 
   return (
-    <header className="bg-white border-b border-gray-200 px-8 py-4 sticky top-0 z-10">
+    <header className="bg-white border-b border-gray-200 px-4 md:px-8 py-3 md:py-4 sticky top-0 z-10">
       <div className="flex items-center justify-between">
-        <div className="flex-1 max-w-xl" />
+        <div className="flex items-center">
+          <button
+            onClick={onMenuToggle}
+            className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all md:hidden"
+            aria-label="Menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="hidden md:block flex-1 max-w-xl" />
+        </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           <div className="relative" ref={panelRef}>
             <button
               onClick={() => setShowNews((v) => !v)}
@@ -88,7 +99,7 @@ export function Header() {
             </button>
 
             {showNews && (
-              <div className="absolute right-0 mt-3 w-[420px] bg-white border border-gray-200 rounded-xl shadow-2xl z-30 overflow-hidden">
+              <div className="absolute right-0 mt-3 w-[calc(100vw-1rem)] max-w-[420px] bg-white border border-gray-200 rounded-xl shadow-2xl z-30 overflow-hidden">
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-gray-100 flex items-start justify-between">
                   <div>
@@ -174,9 +185,9 @@ export function Header() {
             )}
           </div>
 
-          <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
-            <Link to="/profile" className="flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-gray-50 transition-colors">
-              <div className="text-right">
+          <div className="flex items-center gap-2 md:gap-3 pl-2 md:pl-4 border-l border-gray-200">
+            <Link to="/profile" className="flex items-center gap-2 md:gap-3 rounded-lg px-1 md:px-2 py-1 hover:bg-gray-50 transition-colors">
+              <div className="text-right hidden sm:block">
                 <p className="font-semibold text-sm">{user?.name}</p>
                 <p className="text-xs text-gray-500">{getRoleLabel(user?.role)}</p>
               </div>

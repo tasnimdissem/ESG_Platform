@@ -1,8 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Target, TrendingUp, AlertTriangle, CheckCircle, Clock, Zap, RefreshCcw, X } from 'lucide-react';
-import { fetchRecommendations, type RecommendationItem } from '../services/api';
+import { Target, TrendingUp, AlertTriangle, CheckCircle, Clock, Zap, RefreshCcw, X, Building2, CalendarDays, Info } from 'lucide-react';
+import { fetchRecommendations, fetchCompanyLatestPrediction, type RecommendationItem } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+
+function scoreToRiskLevel(score: number): string {
+  if (score >= 70) return 'Low';
+  if (score >= 40) return 'Medium';
+  return 'High';
+}
+
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  } catch {
+    return iso;
+  }
+}
 
 export default function RecommendationsRag() {
+  const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
@@ -13,14 +29,45 @@ export default function RecommendationsRag() {
   const [selectedDetails, setSelectedDetails] = useState<RecommendationItem | null>(null);
   const [recommendationStatus, setRecommendationStatus] = useState<Record<string, 'not-started' | 'in-progress' | 'completed'>>({});
 
+  // Real score from the company's latest prediction
+  const [companyScore, setCompanyScore] = useState<number | null>(null);
+  const [companyIndustry, setCompanyIndustry] = useState<string | null>(null);
+  const [companyScoreDate, setCompanyScoreDate] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState<string | null>(null);
+  const [isAdminView, setIsAdminView] = useState(false);
+  const [scoreLoaded, setScoreLoaded] = useState(false);
+
+  // Load the company's latest prediction score once on mount
+  useEffect(() => {
+    void (async () => {
+      try {
+        const result = await fetchCompanyLatestPrediction();
+        if (result.found) {
+          setCompanyScore(result.score);
+          setCompanyIndustry(result.primary_industry);
+          setCompanyScoreDate(result.created_at);
+          setIsAdminView(result.is_admin_view ?? false);
+          setCompanyName(result.company_name ?? null);
+        }
+      } catch {
+        // If the endpoint fails, we'll fall back to a neutral score
+      } finally {
+        setScoreLoaded(true);
+      }
+    })();
+  }, []);
+
   const loadRecommendations = async () => {
     setIsLoading(true);
     setErrorMessage(null);
 
+    const effectiveScore = companyScore ?? 50;
+    const riskLevel = scoreToRiskLevel(effectiveScore);
+
     try {
       const response = await fetchRecommendations({
-        score: 76,
-        risk_level: 'Medium',
+        score: effectiveScore,
+        risk_level: riskLevel,
         focus_area: selectedCategory === 'all' ? 'overall' : selectedCategory,
       });
       setRecommendations(response.recommendations ?? []);
@@ -34,9 +81,12 @@ export default function RecommendationsRag() {
     }
   };
 
+  // Load recommendations only after we know the real score
   useEffect(() => {
+    if (!scoreLoaded) return;
     void loadRecommendations();
-  }, [selectedCategory]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory, scoreLoaded]);
 
   const filteredRecommendations = useMemo(
     () =>
@@ -103,11 +153,64 @@ export default function RecommendationsRag() {
   const totalImpact = filteredRecommendations.reduce((sum, rec) => sum + rec.impact, 0);
 
   return (
-    <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
+    <div className="p-4 md:p-8 space-y-8 bg-gray-50 min-h-screen">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Système de Recommandations</h1>
-        <p className="text-gray-600">Actions personnalisées alimentees par le backend RAG local de cette plateforme.</p>
       </div>
+
+      {/* Company score context banner */}
+      {companyScore !== null ? (
+        isAdminView ? (
+          <div className="flex items-start gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-4">
+            <Building2 className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 text-sm text-indigo-800">
+              <span className="font-semibold">Dernière prédiction calculée sur la plateforme</span>
+              {companyName && (
+                <>
+                  <span className="mx-2">·</span>
+                  <span className="font-semibold text-indigo-700">{companyName}</span>
+                </>
+              )}
+              <span className="mx-2">·</span>
+              <span className="font-bold text-indigo-700 text-base">{Math.round(companyScore)}/100</span>
+              {companyIndustry && (
+                <span className="ml-2 text-indigo-500">({companyIndustry})</span>
+              )}
+              {companyScoreDate && (
+                <span className="ml-3 inline-flex items-center gap-1 text-indigo-400 text-xs">
+                  <CalendarDays className="w-3.5 h-3.5" />
+                  {formatDate(companyScoreDate)}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+            <Building2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 text-sm text-emerald-800">
+              <span className="font-semibold">Recommandations basées sur le dernier score calculé de votre entreprise</span>
+              <span className="mx-2">·</span>
+              <span className="font-bold text-emerald-700 text-base">{Math.round(companyScore)}/100</span>
+              {companyIndustry && (
+                <span className="ml-2 text-emerald-600">({companyIndustry})</span>
+              )}
+              {companyScoreDate && (
+                <span className="ml-3 inline-flex items-center gap-1 text-emerald-600 text-xs">
+                  <CalendarDays className="w-3.5 h-3.5" />
+                  {formatDate(companyScoreDate)}
+                </span>
+              )}
+            </div>
+          </div>
+        )
+      ) : scoreLoaded ? (
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-400">
+          <Info className="w-3.5 h-3.5 shrink-0" />
+          {user?.role === 'metier'
+            ? 'Effectuez une prédiction ESG pour obtenir des recommandations personnalisées à votre entreprise'
+            : 'Aucune prédiction ESG disponible sur la plateforme pour le moment'}
+        </div>
+      ) : null}
 
       {errorMessage && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -131,7 +234,9 @@ export default function RecommendationsRag() {
             <Target className="w-5 h-5 text-blue-600" />
           </div>
           <p className="text-4xl font-bold text-gray-900">{recommendations.length}</p>
-          <p className="text-sm text-gray-500 mt-1">RAG: {ragUsed ? 'oui' : 'non'}</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Score base : {companyScore !== null ? `${Math.round(companyScore)}/100` : '—'}
+          </p>
         </div>
 
         <div className="bg-white rounded-xl p-6 border border-gray-200">
@@ -309,7 +414,7 @@ export default function RecommendationsRag() {
               </button>
             </div>
 
-            <div className="p-8 space-y-6">
+            <div className="p-4 md:p-8 space-y-6">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">Description</h3>
                 <p className="text-gray-700 leading-relaxed">{selectedDetails.description}</p>

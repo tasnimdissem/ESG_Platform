@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router';
-import { LayoutDashboard, LineChart, MessageSquare, Lightbulb, LogOut, Leaf, Calculator, ShieldAlert, User, Building2 } from 'lucide-react';
+import { LayoutDashboard, LineChart, MessageSquare, Lightbulb, LogOut, Leaf, Calculator, ShieldAlert, User, Building2, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import trituxLogo from '../../assets/tritux_logo.png';
 
@@ -16,15 +16,24 @@ const ALL_NAV_ITEMS: (NavItem & { roles: string[] })[] = [
   { path: '/admin',          icon: ShieldAlert,      label: 'Administration',    roles: ['admin'] },
 ];
 
-export function Sidebar() {
+type SidebarProps = { isOpen: boolean; onClose: () => void };
+
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { logout, user } = useAuth();
   const role = user?.role === 'user' ? 'decideur' : (user?.role ?? 'decideur');
 
   const navItems = ALL_NAV_ITEMS.filter((item) => item.roles.includes(role));
 
   return (
-    <div className="w-64 bg-gradient-to-b from-emerald-900 to-emerald-950 text-white flex flex-col h-screen sticky top-0 shadow-xl">
-      <div className="p-5 border-b border-emerald-800/70">
+    <div className={`w-64 bg-gradient-to-b from-emerald-900 to-emerald-950 text-white flex-col h-screen shadow-xl md:sticky md:top-0 md:flex ${isOpen ? 'flex fixed inset-y-0 left-0 z-30' : 'hidden'}`}>
+      <div className="p-5 border-b border-emerald-800/70 relative">
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 p-1.5 rounded-lg text-emerald-200 hover:bg-emerald-800 md:hidden"
+          aria-label="Fermer le menu"
+        >
+          <X className="w-4 h-4" />
+        </button>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-900/50">
             <Leaf className="w-6 h-6 drop-shadow" />
@@ -42,6 +51,7 @@ export function Sidebar() {
             key={item.path}
             to={item.path}
             end={item.path === '/'}
+            onClick={onClose}
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-150 ${
                 isActive
@@ -73,13 +83,11 @@ export function Sidebar() {
       </div>
 
       {/* Tritux branding */}
-      <div className="px-4 pb-4 pt-1 border-t border-emerald-800/60">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5">
-          <img src={trituxLogo} alt="Tritux" className="h-6 w-auto object-contain brightness-110" />
-          <div className="text-[10px] text-emerald-400 leading-tight">
-            <p>PFE réalisé chez</p>
-            <p className="font-semibold text-emerald-300">Tritux</p>
-          </div>
+      <div className="px-4 pb-4 pt-2 border-t border-emerald-800/60">
+        <div className="flex items-center justify-center gap-2 opacity-40 hover:opacity-75 transition-opacity duration-300">
+          <span className="text-[9px] text-emerald-300 tracking-widest uppercase font-light">Powered by</span>
+          <div className="h-px w-3 bg-emerald-500/60" />
+          <img src={trituxLogo} alt="Tritux" className="h-4 w-auto object-contain brightness-150" />
         </div>
       </div>
     </div>

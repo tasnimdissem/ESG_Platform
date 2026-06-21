@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify, request
 
-from backend.services.esg_service import compute_esg_score, get_recommendations, validate_predict_payload
+from backend.services.esg_service import get_recommendations
 from backend.services.integration_service import build_integration_response
 from backend.services.news_service import fetch_esg_news
 from backend.services.conversation_service import add_turn, build_history_block

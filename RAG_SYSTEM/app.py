@@ -193,6 +193,25 @@ def _build_recommendations(
             timeline = "1-3 mois"
             impact = "medium"
 
+        _pillar_justifications = {
+            "Environmental": (
+                "Renforcer les pratiques environnementales de l'organisation : réduire les émissions de CO₂, "
+                "optimiser la consommation d'énergie et améliorer la gestion des ressources naturelles."
+            ),
+            "Social": (
+                "Améliorer les politiques sociales et le bien-être des collaborateurs : diversité, "
+                "formation, santé-sécurité et dialogue avec les parties prenantes."
+            ),
+            "Governance": (
+                "Optimiser la gouvernance de l'organisation : transparence, conformité réglementaire, "
+                "lutte contre la corruption et renforcement des processus de contrôle interne."
+            ),
+        }
+        justification_text = _pillar_justifications.get(
+            pillar,
+            f"Initiative d'amélioration {pillar_fr} basée sur les données ESG disponibles."
+        )
+
         priority = min(5, max(1, 6 - idx))
         rec_id = f"rec-{pillar[:1].lower()}-{idx}"
 
@@ -205,10 +224,7 @@ def _build_recommendations(
                 "effort": effort,
                 "timeline": timeline,
                 "priority": priority,
-                "justification": (
-                    f"Pour {company_name}, les données récupérées indiquent : {first_insight} "
-                    f"(question : {question})."
-                ),
+                "justification": justification_text,
                 "sources": [
                     {
                         "source_name": source_name,

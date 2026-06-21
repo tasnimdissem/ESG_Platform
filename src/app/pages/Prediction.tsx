@@ -49,6 +49,7 @@ export default function Prediction() {
   const [newCompanyName, setNewCompanyName] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [rawInputs, setRawInputs] = useState<Record<string, string>>({});
 
   useEffect(() => {
     try {
@@ -92,11 +93,23 @@ export default function Prediction() {
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'number' ? parseFloat(value) || 0 : value,
-    }));
+    const { name, value } = e.target;
+    const isNumeric = (e.target as HTMLInputElement).dataset?.numeric === 'true';
+
+    if (isNumeric) {
+      setRawInputs(prev => ({ ...prev, [name]: value }));
+      const parsed = parseFloat(value);
+      if (!Number.isNaN(parsed)) {
+        setFormData(prev => ({ ...prev, [name]: parsed }));
+      }
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value as any }));
+    }
+  };
+
+  const handleNumericBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const { name } = e.target;
+    setRawInputs(prev => ({ ...prev, [name]: String((formData as any)[name]) }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -319,8 +332,8 @@ export default function Prediction() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="mb-8 flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <Calculator className="w-8 h-8 text-emerald-600" />
@@ -358,15 +371,15 @@ export default function Prediction() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700">Valeur boursière de l'entreprise</label>
-                  <input type="number" step="0.1" name="log_market_cap" value={formData.log_market_cap} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
+                  <input type="text" inputMode="decimal" data-numeric="true" name="log_market_cap" value={rawInputs['log_market_cap'] ?? String(formData.log_market_cap)} onChange={handleChange} onBlur={handleNumericBlur} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700">Nombre total d'employés</label>
-                  <input type="number" step="0.1" name="log_employees" value={formData.log_employees} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
+                  <input type="text" inputMode="decimal" data-numeric="true" name="log_employees" value={rawInputs['log_employees'] ?? String(formData.log_employees)} onChange={handleChange} onBlur={handleNumericBlur} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700">Chiffre d'affaires annuel</label>
-                  <input type="number" step="0.1" name="log_revenue_wins" value={formData.log_revenue_wins} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
+                  <input type="text" inputMode="decimal" data-numeric="true" name="log_revenue_wins" value={rawInputs['log_revenue_wins'] ?? String(formData.log_revenue_wins)} onChange={handleChange} onBlur={handleNumericBlur} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
                 </div>
               </div>
             </section>
@@ -377,10 +390,7 @@ export default function Prediction() {
                 <Leaf className="w-5 h-5 text-emerald-500" />
                 Environnement (E)
               </h2>
-              <div className="mb-3 flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs text-emerald-700">
-                <Leaf className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>Les valeurs numériques sont en <strong>échelle logarithmique</strong>. Ex : 1 000 employés → entrez ~6.9 (ln(1000)). Utilisez un calculateur si besoin.</span>
-              </div>
+             
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
                   { name: 'log_scope_1', label: 'Émissions CO₂ directes (usines, véhicules)', title: 'Scope 1 : émissions provenant des sources détenues ou contrôlées par l\'entreprise' },
@@ -395,7 +405,7 @@ export default function Prediction() {
                 ].map((field) => (
                   <div key={field.name} className="space-y-1">
                     <label className="text-sm font-medium text-gray-700" title={(field as any).title}>{field.label}</label>
-                    <input type="number" step="0.1" name={field.name} value={(formData as any)[field.name]} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" title={(field as any).title} />
+                    <input type="text" inputMode="decimal" data-numeric="true" name={field.name} value={rawInputs[field.name] ?? String((formData as any)[field.name])} onChange={handleChange} onBlur={handleNumericBlur} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" title={(field as any).title} />
                   </div>
                 ))}
               </div>
@@ -418,7 +428,7 @@ export default function Prediction() {
                 ].map((field) => (
                   <div key={field.name} className="space-y-1">
                     <label className="text-sm font-medium text-gray-700" title={field.title}>{field.label}</label>
-                    <input type="number" step="0.1" name={field.name} value={(formData as any)[field.name]} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" title={field.title} />
+                    <input type="text" inputMode="decimal" data-numeric="true" name={field.name} value={rawInputs[field.name] ?? String((formData as any)[field.name])} onChange={handleChange} onBlur={handleNumericBlur} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" title={field.title} />
                   </div>
                 ))}
               </div>

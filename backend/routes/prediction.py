@@ -143,6 +143,67 @@ def predict():
         # Catch-all for any other unexpected errors
         return jsonify({"error": f"Une erreur inattendue s'est produite : {str(e)}"}), 500
 
+@prediction_bp.get('/company-latest-prediction')
+@jwt_required()
+def company_latest_prediction():
+    """Returns the most recent prediction for the current user's company.
+    Accessible to admin, metier and decideur roles."""
+    user_id = get_jwt_identity()
+    try:
+        current_user = db.session.get(User, int(user_id))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Identité du jeton invalide'}), 401
+
+    if current_user is None or current_user.role not in ('admin', 'metier', 'decideur'):
+        return jsonify({'error': 'Accès refusé.'}), 403
+
+    if current_user.role == 'admin':
+        entry = PredictionHistory.query.order_by(PredictionHistory.created_at.desc()).first()
+        if entry is None:
+            return jsonify({'found': False}), 200
+        return jsonify({
+            'found': True,
+            'is_admin_view': True,
+            'score': entry.score,
+            'company_name': entry.company_name,
+            'primary_industry': entry.primary_industry,
+            'created_at': entry.created_at.isoformat() + 'Z',
+            'features_data': entry.features_data,
+        }), 200
+    admin_ids = [u.id for u in User.query.filter_by(role='admin').all()]
+
+    if current_user.company_id:
+        company_user_ids = [
+            u.id for u in User.query.filter_by(company_id=current_user.company_id).all()
+        ]
+        relevant_ids = list(set(company_user_ids + admin_ids))
+        entry = (
+            PredictionHistory.query
+            .filter(PredictionHistory.user_id.in_(relevant_ids))
+            .order_by(PredictionHistory.created_at.desc())
+            .first()
+        )
+    else:
+        relevant_ids = list(set([int(user_id)] + admin_ids))
+        entry = (
+            PredictionHistory.query
+            .filter(PredictionHistory.user_id.in_(relevant_ids))
+            .order_by(PredictionHistory.created_at.desc())
+            .first()
+        )
+
+    if entry is None:
+        return jsonify({'found': False}), 200
+
+    return jsonify({
+        'found': True,
+        'score': entry.score,
+        'primary_industry': entry.primary_industry,
+        'created_at': entry.created_at.isoformat() + 'Z',
+        'features_data': entry.features_data,
+    }), 200
+
+
 @prediction_bp.get('/history')
 @jwt_required()
 def get_history():
