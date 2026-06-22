@@ -9,76 +9,9 @@ from flask import current_app
 from backend.services.local_rag_service import generate_local_recommendations
 
 
-REQUIRED_FIELDS = [
-    'co2_emissions',
-    'revenue',
-    'governance_score',
-    'social_score',
-    'environment_score',
-]
-
-
-def validate_predict_payload(payload: Any) -> tuple[bool, dict[str, float], str | None]:
-    if not isinstance(payload, dict):
-        return False, {}, 'Payload must be a JSON object.'
-
-    missing_fields = [field for field in REQUIRED_FIELDS if field not in payload]
-    if missing_fields:
-        return False, {}, f"Missing required fields: {', '.join(missing_fields)}"
-
-    numeric_features: dict[str, float] = {}
-    try:
-        for field in REQUIRED_FIELDS:
-            numeric_features[field] = float(payload[field])
-    except (TypeError, ValueError):
-        return False, {}, 'All required fields must be numeric values.'
-
-    for score_field in ['governance_score', 'social_score', 'environment_score']:
-        value = numeric_features[score_field]
-        if value < 0 or value > 100:
-            return False, {}, f'{score_field} must be between 0 and 100.'
-
-    if numeric_features['co2_emissions'] < 0:
-        return False, {}, 'co2_emissions must be greater than or equal to 0.'
-
-    if numeric_features['revenue'] < 0:
-        return False, {}, 'revenue must be greater than or equal to 0.'
-
-    return True, numeric_features, None
-
-
-def compute_esg_score(features: dict[str, float]) -> dict[str, Any]:
-    governance = features['governance_score']
-    social = features['social_score']
-    environment = features['environment_score']
-    co2_emissions = features['co2_emissions']
-
-    co2_component = max(0.0, 100.0 - min(co2_emissions / 10.0, 100.0))
-
-    raw_score = (
-        0.35 * environment
-        + 0.30 * governance
-        + 0.25 * social
-        + 0.10 * co2_component
-    )
-    score = round(max(0.0, min(raw_score, 100.0)), 2)
-
-    if score < 40:
-        risk = 'High'
-    elif score < 70:
-        risk = 'Medium'
-    else:
-        risk = 'Low'
-
-    return {
-        'score': score,
-        'risk': risk,
-        'confidence': 0.78,
-    }
-
 
 def get_dashboard_kpis(user: Any | None = None) -> dict[str, Any]:
-    role = getattr(user, 'role', 'user')
+    role = getattr(user, 'role', 'decideur')
 
     base_metrics = {
         'esg_score': 76,
@@ -133,13 +66,13 @@ def _ask_rag_recommendations(prompt: str, rag_url: str, top_k: int, timeout_seco
                 {
                     'id': str(index),
                     'title': line,
-                    'category': 'Governance',
+                    'category': pillar_category,
                     'priority': 'medium',
                     'impact': 8 + index,
                     'effort': 'medium',
-                    'timeline': '3 months',
-                    'currentScore': 74,
-                    'targetScore': 86,
+                    'timeline': '3 mois',
+                    'currentScore': int(score) if isinstance(score, (int, float)) else 74,
+                    'targetScore': min(100, (int(score) if isinstance(score, (int, float)) else 74) + 12),
                     'description': line,
                     'actions': [line],
                     'status': 'not-started',
@@ -181,6 +114,15 @@ def get_recommendations(payload: Any | None = None) -> dict[str, Any]:
         risk_level = payload.get('risk_level', risk_level)
         focus_area = payload.get('focus_area', focus_area)
 
+    # Determine the ESG pillar category from focus_area
+    _pillar_map = {
+        'governance': 'Governance',
+        'environnement': 'Environmental',
+        'environmental': 'Environmental',
+        'social': 'Social',
+    }
+    pillar_category = _pillar_map.get(focus_area.lower(), 'Governance')
+
     recommendations: list[dict[str, Any]]
     rag_sources: list[str]
     rag_used = False
@@ -195,11 +137,21 @@ def get_recommendations(payload: Any | None = None) -> dict[str, Any]:
     if rag_url:
         timeout_seconds = _safe_int(current_app.config.get('RAG_TIMEOUT_SECONDS', 60), 60)
         prompt = (
-            'You are an ESG recommendation assistant. '
-            'Given the company context below, return concise, actionable recommendations as a bullet list. '
-            'Each recommendation must be practical and measurable.\n\n'
-            f'Context:\n- ESG score: {score}\n- Risk level: {risk_level}\n- Focus area: {focus_area}\n\n'
-            'Return 3 to 5 recommendations.'
+            'Tu es un expert ESG spécialisé dans les recommandations opérationnelles. '
+            'En fonction du contexte de l\'entreprise ci-dessous, génère des recommandations concrètes '
+            'et mesurables sous forme de liste à puces. Chaque recommandation doit inclure '
+            'une action précise et un délai réaliste.\n\n'
+            f'Contexte :\n'
+            f'- Score ESG : {score}/100\n'
+            f'- Niveau de risque : {risk_level}\n'
+            f'- Domaine prioritaire : {focus_area}\n\n'
+            'NORMES GRI — RÈGLES STRICTES :\n'
+            '• Cite UNIQUEMENT les normes GRI 2021 ou ultérieures.\n'
+            '• Ne cite JAMAIS GRI 101, 102 ou 103 (obsolètes) — utilise GRI 1, GRI 2, GRI 3 (2021).\n'
+            '• Piliers officiels : Gouvernance = GRI 2 + GRI 205/206/207/415 ; '
+            'Social = GRI 400 (dont GRI 405 Diversité = SOCIAL pas Gouvernance) ; '
+            'Environnement = GRI 300.\n\n'
+            'Génère 3 à 5 recommandations prioritaires.'
         )
 
         try:

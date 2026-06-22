@@ -83,7 +83,7 @@ class Config:
     JWT_TOKEN_LOCATION = ['cookies']  # Only use cookies, not headers
     JWT_COOKIE_SECURE = IS_PRODUCTION  # HTTPS only in production
     JWT_COOKIE_HTTPONLY = True  # Cannot be accessed by JavaScript
-    JWT_COOKIE_SAMESITE = 'Strict'  # Prevent CSRF
+    JWT_COOKIE_SAMESITE = 'Lax'
     JWT_COOKIE_NAME = 'access_token_cookie'
     JWT_COOKIE_CSRF_PROTECT = IS_PRODUCTION  # Enable CSRF protection in prod
     RAG_API_BASE_URL = os.getenv('RAG_API_BASE_URL', 'http://localhost:8000')

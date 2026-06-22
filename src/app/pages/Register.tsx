@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
-import { useAuth } from '../contexts/AuthContext';
+import { Link } from 'react-router';
 import { Leaf, Mail, Lock, User, ArrowRight } from 'lucide-react';
 
 export default function Register() {
@@ -9,13 +8,13 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const { login } = useAuth();
-  const navigate = useNavigate();
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMessage(null);
+    setSuccessMessage(null);
 
     try {
       const response = await fetch('/api/auth/register', {
@@ -23,7 +22,7 @@ export default function Register() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, email, password, role: 'user' }),
+        body: JSON.stringify({ name, email, password }),
       });
 
       if (!response.ok) {
@@ -40,8 +39,13 @@ export default function Register() {
         throw new Error(message);
       }
 
-      await login(email, password);
-      navigate('/');
+      const data = await response.json() as { needs_approval?: boolean; needs_verification?: boolean; message?: string };
+      setSuccessMessage(
+        data.message ??
+          (data.needs_approval
+            ? 'Compte créé. Il sera activé après validation par un administrateur.'
+            : 'Compte créé. Vérifiez votre e-mail pour l’activer.'),
+      );
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Impossible de créer le compte.');
     } finally {
@@ -54,11 +58,11 @@ export default function Register() {
       <div className="w-full max-w-6xl grid md:grid-cols-2 gap-8 items-center">
         <div className="text-white space-y-6">
           <div className="flex items-center gap-3">
-            <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center">
+            <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center flex-shrink-0">
               <Leaf className="w-10 h-10" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold">ESG Predictor</h1>
+              <h1 className="text-3xl md:text-4xl font-bold">ESG Predictor</h1>
               <p className="text-emerald-200">Créez votre compte</p>
             </div>
           </div>
@@ -67,7 +71,7 @@ export default function Register() {
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8">
           <h2 className="text-2xl font-bold mb-2">Créer un compte</h2>
           <p className="text-gray-600 mb-8">Inscription rapide pour la plateforme ESG.</p>
 
@@ -75,6 +79,12 @@ export default function Register() {
             {errorMessage && (
               <div className="bg-red-50 text-red-700 border border-red-200 rounded-lg p-3 text-sm">
                 {errorMessage}
+              </div>
+            )}
+
+            {successMessage && (
+              <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg p-3 text-sm">
+                {successMessage}
               </div>
             )}
 

@@ -31,14 +31,32 @@ def _load_dataset() -> Optional[pd.DataFrame]:
     if _DATASET_CACHE is not None:
         return _DATASET_CACHE
 
-    for pattern in ("*.xls", "*.xlsx", "*.csv"):
-        for p in config.RAW_DATASETS_DIR.glob(pattern):
+    for pattern in ("*.csv", "*.xlsx", "*.xls"):
+        for p in sorted(config.RAW_DATASETS_DIR.glob(pattern)):
             try:
-                df = pd.read_csv(p, encoding="utf-8", on_bad_lines="skip")
+                ext = p.suffix.lower()
+                if ext == ".xlsx":
+                    df = pd.read_excel(p, engine="openpyxl")
+                elif ext == ".xls":
+                    try:
+                        df = pd.read_excel(p, engine="xlrd")
+                    except Exception:
+                        # File may be a CSV saved with .xls extension
+                        df = pd.read_csv(p, encoding="utf-8", on_bad_lines="skip")
+                elif ext == ".csv":
+                    df = pd.read_csv(p, encoding="utf-8", on_bad_lines="skip")
+                else:
+                    continue
+
                 if "company_name" in df.columns and "esg_score_v3" in df.columns:
                     _DATASET_CACHE = df
                     logger.info("Dataset loaded: %s (%d rows)", p.name, len(df))
                     return df
+                else:
+                    logger.warning(
+                        "Skipping %s — missing required columns (company_name, esg_score_v3). "
+                        "Found: %s", p.name, list(df.columns[:10])
+                    )
             except Exception as exc:
                 logger.warning("Could not load dataset %s: %s", p.name, exc)
     return None

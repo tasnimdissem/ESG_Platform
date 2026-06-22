@@ -78,9 +78,6 @@ def transcribe() -> object:
             "supported_languages": list(SUPPORTED_LANGUAGES.keys()),
         }
     )
-
-
-# ---------------------------------------------------------------------------
 # POST /api/v1/voice-query
 # Accepts: multipart/form-data with 'audio' OR 'text', plus optional
 #          'session_id', 'language', 'top_k'

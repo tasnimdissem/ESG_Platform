@@ -2,8 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { createCompany, deleteCompany, fetchCompanies, updateCompany, type CompanyRecord } from '../services/api';
 import { Calculator, AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Companies() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [companies, setCompanies] = useState<CompanyRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -32,7 +35,7 @@ export default function Companies() {
         setCompanies(data);
       } catch (err) {
         console.error('Erreur chargement entreprises', err);
-        setLoadError('Impossible de charger les entreprises.');
+        setLoadError(err instanceof Error ? err.message : 'Impossible de charger les entreprises.');
       } finally {
         setIsLoading(false);
       }
@@ -75,9 +78,8 @@ export default function Companies() {
     }
   };
 
-  const handleCalculateScore = (companyName: string) => {
-    // Navigate to Prediction page with company name pre-filled
-    navigate(`/prediction?company=${encodeURIComponent(companyName)}`);
+  const handleCalculateScore = (companyId: string, companyName: string) => {
+    navigate(`/prediction?company=${encodeURIComponent(companyName)}&companyId=${encodeURIComponent(companyId)}`);
   };
 
   const openEditDialog = (company: CompanyRecord) => {
@@ -148,25 +150,27 @@ export default function Companies() {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
+    <div className="p-4 md:p-6">
+      <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-2xl font-bold">Mes entreprises</h2>
           <div className="relative">
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Rechercher une entreprise..."
-              className="pl-3 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+              className="pl-3 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm w-full sm:w-auto"
             />
           </div>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700"
-        >
-          + Ajouter une entreprise
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700"
+          >
+            + Ajouter une entreprise
+          </button>
+        )}
       </div>
 
       {showForm && (
@@ -253,11 +257,16 @@ export default function Companies() {
           <div className="p-4 border border-slate-200 rounded text-slate-500">Chargement des entreprises...</div>
         )}
         {loadError && (
-          <div className="p-4 border border-amber-200 rounded text-amber-700 bg-amber-50">{loadError}</div>
+          <div className="p-4 border border-amber-200 rounded text-amber-700 bg-amber-50 flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <span>{loadError}</span>
+          </div>
         )}
         {!isLoading && companies.length === 0 && !loadError && (
           <div className="p-4 border border-dashed border-slate-300 rounded text-slate-500">
-            Aucune entreprise enregistrée. Cliquez sur "+ Ajouter une entreprise" pour commencer.
+            {isAdmin
+              ? 'Aucune entreprise enregistrée. Cliquez sur "+ Ajouter une entreprise" pour commencer.'
+              : 'Aucune entreprise disponible pour votre compte.'}
           </div>
         )}
         {companies
@@ -270,7 +279,7 @@ export default function Companies() {
             return nameMatch || scoreMatch;
           })
           .map((c) => (
-          <div key={c.entreprise_id} className="p-4 border border-slate-200 rounded-md flex items-center justify-between gap-4 hover:bg-slate-50">
+          <div key={c.entreprise_id} className="p-4 border border-slate-200 rounded-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50">
             <div>
               <div className="font-semibold text-slate-900">{c.nom}</div>
               <div className="text-xs text-slate-500">
@@ -282,27 +291,31 @@ export default function Companies() {
             <div className="flex items-center gap-2 flex-wrap justify-end">
               <button
                 type="button"
-                onClick={() => handleCalculateScore(c.nom)}
+                onClick={() => handleCalculateScore(c.entreprise_id, c.nom)}
                 className="px-3 py-2 border border-blue-300 rounded text-blue-700 hover:bg-blue-50 flex items-center gap-2"
               >
                 <Calculator className="w-4 h-4" />
                 Calculer score
               </button>
-              <button
-                type="button"
-                onClick={() => openEditDialog(c)}
-                className="px-3 py-2 border border-slate-300 rounded text-slate-700 hover:bg-slate-100"
-              >
-                Modifier
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDelete(c)}
-                disabled={isDeletingId === c.entreprise_id}
-                className="px-3 py-2 border border-red-300 rounded text-red-700 hover:bg-red-50 disabled:opacity-60"
-              >
-                {isDeletingId === c.entreprise_id ? 'Suppression...' : 'Supprimer'}
-              </button>
+              {isAdmin && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => openEditDialog(c)}
+                    className="px-3 py-2 border border-slate-300 rounded text-slate-700 hover:bg-slate-100"
+                  >
+                    Modifier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(c)}
+                    disabled={isDeletingId === c.entreprise_id}
+                    className="px-3 py-2 border border-red-300 rounded text-red-700 hover:bg-red-50 disabled:opacity-60"
+                  >
+                    {isDeletingId === c.entreprise_id ? 'Suppression...' : 'Supprimer'}
+                  </button>
+                </>
+              )}
               <Link to={`/companies/${c.entreprise_id}`} className="px-4 py-2 bg-emerald-500 text-white rounded hover:bg-emerald-600">
                 Voir détails
               </Link>

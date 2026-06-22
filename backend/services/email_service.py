@@ -75,3 +75,38 @@ def send_password_reset_email(to_email: str, token: str, expiry_minutes: int = 1
     '''
 
     return send_email(to_email=to_email, subject=subject, text_body=text_body, html_body=html_body)
+
+
+def send_account_activation_email(to_email: str, user_name: str, token: str) -> bool:
+    base_url = str(current_app.config.get('EMAIL_VERIFY_LINK_BASE_URL', 'http://localhost:5173/verify-email')).strip()
+    query = urlencode({'token': token})
+    activation_link = f'{base_url}?{query}'
+
+    subject = 'Plateforme ESG - Activation de votre compte'
+    text_body = (
+        f'Bonjour {user_name},\n\n'
+        'Bienvenue sur la Plateforme ESG ! Pour activer votre compte, cliquez sur le lien ci-dessous :\n\n'
+        f'{activation_link}\n\n'
+        'Ce lien expire dans 24 heures.\n\n'
+        'Si vous n\'avez pas créé de compte, ignorez cet e-mail.'
+    )
+    html_body = f'''
+        <html>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
+            <h2 style="color: #059669;">Activez votre compte ESG Platform</h2>
+            <p>Bonjour <strong>{user_name}</strong>,</p>
+            <p>Bienvenue ! Votre inscription a bien été prise en compte. Cliquez sur le bouton ci-dessous pour activer votre compte :</p>
+            <p style="text-align:center; margin: 32px 0;">
+              <a href="{activation_link}" style="display:inline-block;padding:14px 28px;background:#059669;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">
+                Activer mon compte
+              </a>
+            </p>
+            <p><strong>Ce lien expire dans 24 heures.</strong></p>
+            <p>Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :</p>
+            <p><a href="{activation_link}">{activation_link}</a></p>
+            <p style="color:#6b7280; font-size:13px;">Si vous n'avez pas créé de compte sur ESG Platform, ignorez cet e-mail.</p>
+          </body>
+        </html>
+    '''
+
+    return send_email(to_email=to_email, subject=subject, text_body=text_body, html_body=html_body)

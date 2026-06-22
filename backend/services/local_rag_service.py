@@ -68,9 +68,9 @@ def extract_sources(raw_sources: Any) -> list[str]:
 def generate_local_chat_answer(message: str, top_k: int = 3) -> tuple[str, list[str]]:
     answer = _fallback_chat_response(message)
     sources = [
-        'ESG dashboard overview',
-        'Reporting workflow',
-        'Recommendations playbook',
+        'Vue d\'ensemble du tableau de bord ESG',
+        'Flux de reporting',
+        'Guide des recommandations',
     ][: max(1, top_k)]
     return answer, sources
 
@@ -95,61 +95,61 @@ def generate_local_recommendations(payload: dict[str, Any] | None = None, top_k:
     recommendations = [
         {
             'id': '1',
-            'title': 'Review ESG policies quarterly',
+            'title': 'Réviser les politiques ESG chaque trimestre',
             'category': 'Governance',
             'priority': base_priority,
             'impact': 10,
             'effort': 'medium',
-            'timeline': '3 months',
+            'timeline': '3 mois',
             'currentScore': 74,
             'targetScore': 86,
-            'description': 'Align policy reviews with reporting cycles and governance checks.',
+            'description': 'Aligner les révisions de politiques avec les cycles de reporting et les contrôles de gouvernance.',
             'actions': [
-                'Assign an owner for quarterly policy review',
-                'Track action items in the ESG dashboard',
-                'Close the loop with executive reporting',
+                'Désigner un responsable de la révision trimestrielle des politiques',
+                'Suivre les actions dans le tableau de bord ESG',
+                'Boucler le cycle avec le reporting exécutif',
             ],
             'status': 'in-progress',
         },
         {
             'id': '2',
-            'title': 'Automate carbon data collection',
+            'title': 'Automatiser la collecte des données carbone',
             'category': 'Environmental',
             'priority': 'high',
             'impact': 12,
             'effort': 'high',
-            'timeline': '6 months',
+            'timeline': '6 mois',
             'currentScore': 76,
             'targetScore': 90,
-            'description': 'Reduce manual entry and improve traceability across Scope 1, 2, and 3.',
+            'description': 'Réduire la saisie manuelle et améliorer la traçabilité sur les Scopes 1, 2 et 3.',
             'actions': [
-                'Connect utility and logistics sources to a single pipeline',
-                'Validate emissions data at ingestion',
-                'Create audit logs for compliance review',
+                'Connecter les sources d\'énergie et de logistique à un pipeline centralisé',
+                'Valider les données d\'émissions à l\'ingestion',
+                'Créer des journaux d\'audit pour la conformité réglementaire',
             ],
             'status': 'not-started',
         },
         {
             'id': '3',
-            'title': 'Prepare stakeholder summary packs',
+            'title': 'Préparer des synthèses ESG pour les parties prenantes',
             'category': 'Social',
             'priority': 'medium',
             'impact': 8,
             'effort': 'low',
-            'timeline': '2 months',
+            'timeline': '2 mois',
             'currentScore': 78,
             'targetScore': 88,
-            'description': 'Package the most important ESG outcomes for leadership and investors.',
+            'description': 'Regrouper les résultats ESG les plus importants pour la direction et les investisseurs.',
             'actions': [
-                'Summarize top risks and mitigations',
-                'Highlight KPIs that moved this quarter',
-                'Reuse the same narrative across reporting channels',
+                'Résumer les principaux risques et mesures d\'atténuation',
+                'Mettre en avant les KPI ayant évolué ce trimestre',
+                'Réutiliser le même message sur tous les canaux de reporting',
             ],
             'status': 'not-started',
         },
     ][: max(1, top_k)]
 
     if focus_area.lower() != 'overall':
-        recommendations[0]['description'] = f'Prioritize {focus_area} actions in the next reporting cycle.'
+        recommendations[0]['description'] = f'Prioriser les actions {focus_area} lors du prochain cycle de reporting.'
 
-    return recommendations, ['ESG playbook', 'Reporting guidelines', 'RAG fallback context']
+    return recommendations, ['Guide ESG', 'Directives de reporting', 'Contexte RAG local']

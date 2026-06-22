@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useSearchParams } from 'react-router';
-import { Calculator, Activity, Leaf, Users, Building, ShieldCheck, Zap, Download, History } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router';
+import { Calculator, Activity, Leaf, Users, Building, ShieldCheck, Zap, Download, History, CheckCircle, Plus } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { createCompany, fetchRecommendations, type RecommendationItem } from '../services/api';
+import { addCompanyHistory, createCompany, fetchCompanies, fetchRecommendations, type CompanyRecord, type RecommendationItem } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { jsPDF } from 'jspdf';
 import { DEFAULT_INDICATORS, ESGIndicators, INDICATOR_LABELS } from '../utils/esgIndicators';
 
@@ -11,10 +12,16 @@ type ValidationErrorDetail = {
   message: string;
 };
 
+const NEW_COMPANY_SENTINEL = '__new__';
+
 export default function Prediction() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const prefilledCompanyName = searchParams.get('company') ?? '';
-  
+  const prefilledCompanyId = searchParams.get('companyId') ?? null;
+
   const [formData, setFormData] = useState<ESGIndicators>(() => {
     try {
       const raw = localStorage.getItem('esg_simulator_form');
@@ -37,9 +44,12 @@ export default function Prediction() {
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrorDetail[]>([]);
   const [history, setHistory] = useState<any[]>([]);
-  const [showSaveCompany, setShowSaveCompany] = useState(false);
-  const [companyName, setCompanyName] = useState(prefilledCompanyName);
-  const [isSavingCompany, setIsSavingCompany] = useState(false);
+  const [companies, setCompanies] = useState<CompanyRecord[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [rawInputs, setRawInputs] = useState<Record<string, string>>({});
 
   useEffect(() => {
     try {
@@ -78,12 +88,28 @@ export default function Prediction() {
     fetchHistory();
   }, []);
 
+  useEffect(() => {
+    fetchCompanies().then(setCompanies).catch(() => {});
+  }, []);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'number' ? parseFloat(value) || 0 : value,
-    }));
+    const { name, value } = e.target;
+    const isNumeric = (e.target as HTMLInputElement).dataset?.numeric === 'true';
+
+    if (isNumeric) {
+      setRawInputs(prev => ({ ...prev, [name]: value }));
+      const parsed = parseFloat(value);
+      if (!Number.isNaN(parsed)) {
+        setFormData(prev => ({ ...prev, [name]: parsed }));
+      }
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value as any }));
+    }
+  };
+
+  const handleNumericBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const { name } = e.target;
+    setRawInputs(prev => ({ ...prev, [name]: String((formData as any)[name]) }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -121,6 +147,18 @@ export default function Prediction() {
 
       setScore(data.score);
       fetchHistory();
+
+      // Auto-save vers l'entreprise si on vient de la page Entreprises
+      if (prefilledCompanyId) {
+        setAutoSaveStatus('saving');
+        try {
+          await addCompanyHistory(prefilledCompanyId, { indicators: formData, score: data.score });
+          setAutoSaveStatus('saved');
+        } catch {
+          setAutoSaveStatus('error');
+        }
+      }
+
       // Récupérer les meilleures recommandations à afficher avec le score
       try {
         const recs = await fetchRecommendations({ score: data.score, focus_area: formData.primary_industry });
@@ -137,35 +175,35 @@ export default function Prediction() {
 
   const getScoreColor = (value: number) => {
     if (value >= 80) return 'text-emerald-500';
-    if (value >= 50) return 'text-amber-500';
+    if (value >= 60) return 'text-blue-500';
+    if (value >= 40) return 'text-amber-500';
     return 'text-red-500';
   };
 
   const getScoreBg = (value: number) => {
     if (value >= 80) return 'from-emerald-400 to-emerald-600';
-    if (value >= 50) return 'from-amber-400 to-amber-600';
+    if (value >= 60) return 'from-blue-400 to-blue-600';
+    if (value >= 40) return 'from-amber-400 to-amber-600';
     return 'from-red-400 to-red-600';
   };
 
   const handleSaveToCompany = async () => {
-    if (!companyName.trim() || score === null) return;
-    setIsSavingCompany(true);
-
+    if (!selectedCompanyId || score === null) return;
+    setSaveStatus('saving');
     try {
-      await createCompany({
-        name: companyName,
-        indicators: formData,
-        score,
-      });
-      
-      setShowSaveCompany(false);
-      setCompanyName('');
-      alert('Entreprise enregistrée avec succès !');
-    } catch (err) {
-      console.error(err);
-      alert('Erreur lors de l\'enregistrement');
-    } finally {
-      setIsSavingCompany(false);
+      if (selectedCompanyId === NEW_COMPANY_SENTINEL) {
+        const name = newCompanyName.trim();
+        if (!name) { setSaveStatus('error'); return; }
+        const created = await createCompany({ name, indicators: formData, score });
+        setCompanies((prev) => [created, ...prev]);
+        setSelectedCompanyId(created.entreprise_id);
+        setNewCompanyName('');
+      } else {
+        await addCompanyHistory(selectedCompanyId, { indicators: formData, score });
+      }
+      setSaveStatus('saved');
+    } catch {
+      setSaveStatus('error');
     }
   };
 
@@ -294,8 +332,8 @@ export default function Prediction() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="mb-8 flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <Calculator className="w-8 h-8 text-emerald-600" />
@@ -333,15 +371,15 @@ export default function Prediction() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700">Valeur boursière de l'entreprise</label>
-                  <input type="number" step="0.1" name="log_market_cap" value={formData.log_market_cap} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
+                  <input type="text" inputMode="decimal" data-numeric="true" name="log_market_cap" value={rawInputs['log_market_cap'] ?? String(formData.log_market_cap)} onChange={handleChange} onBlur={handleNumericBlur} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700">Nombre total d'employés</label>
-                  <input type="number" step="0.1" name="log_employees" value={formData.log_employees} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
+                  <input type="text" inputMode="decimal" data-numeric="true" name="log_employees" value={rawInputs['log_employees'] ?? String(formData.log_employees)} onChange={handleChange} onBlur={handleNumericBlur} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700">Chiffre d'affaires annuel</label>
-                  <input type="number" step="0.1" name="log_revenue_wins" value={formData.log_revenue_wins} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
+                  <input type="text" inputMode="decimal" data-numeric="true" name="log_revenue_wins" value={rawInputs['log_revenue_wins'] ?? String(formData.log_revenue_wins)} onChange={handleChange} onBlur={handleNumericBlur} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" />
                 </div>
               </div>
             </section>
@@ -352,10 +390,7 @@ export default function Prediction() {
                 <Leaf className="w-5 h-5 text-emerald-500" />
                 Environnement (E)
               </h2>
-              <div className="mb-3 flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs text-emerald-700">
-                <Leaf className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>Les valeurs numériques sont en <strong>échelle logarithmique</strong>. Ex : 1 000 employés → entrez ~6.9 (ln(1000)). Utilisez un calculateur si besoin.</span>
-              </div>
+             
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
                   { name: 'log_scope_1', label: 'Émissions CO₂ directes (usines, véhicules)', title: 'Scope 1 : émissions provenant des sources détenues ou contrôlées par l\'entreprise' },
@@ -370,7 +405,7 @@ export default function Prediction() {
                 ].map((field) => (
                   <div key={field.name} className="space-y-1">
                     <label className="text-sm font-medium text-gray-700" title={(field as any).title}>{field.label}</label>
-                    <input type="number" step="0.1" name={field.name} value={(formData as any)[field.name]} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" title={(field as any).title} />
+                    <input type="text" inputMode="decimal" data-numeric="true" name={field.name} value={rawInputs[field.name] ?? String((formData as any)[field.name])} onChange={handleChange} onBlur={handleNumericBlur} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" title={(field as any).title} />
                   </div>
                 ))}
               </div>
@@ -393,7 +428,7 @@ export default function Prediction() {
                 ].map((field) => (
                   <div key={field.name} className="space-y-1">
                     <label className="text-sm font-medium text-gray-700" title={field.title}>{field.label}</label>
-                    <input type="number" step="0.1" name={field.name} value={(formData as any)[field.name]} onChange={handleChange} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" title={field.title} />
+                    <input type="text" inputMode="decimal" data-numeric="true" name={field.name} value={rawInputs[field.name] ?? String((formData as any)[field.name])} onChange={handleChange} onBlur={handleNumericBlur} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" title={field.title} />
                   </div>
                 ))}
               </div>
@@ -474,13 +509,35 @@ export default function Prediction() {
                   <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                     <p className="text-sm text-gray-600 font-medium">Interprétation :</p>
                     <p className={`text-lg font-bold mt-1 ${getScoreColor(score)}`}>
-                      {score >= 80 ? 'Excellente Performance' : score >= 50 ? 'Performance Moyenne' : 'Risque Élevé'}
+                      {score >= 80 ? 'Excellente Performance' : score >= 60 ? 'Bonne Performance' : score >= 40 ? 'Performance Moyenne' : 'Risque Élevé'}
                     </p>
                   </div>
+
+                  {/* Échelle de score */}
+                  <div className="p-4 bg-white rounded-xl border border-gray-100">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Échelle de performance</p>
+                    <div className="relative h-4 rounded-full overflow-hidden flex">
+                      <div className="flex-1 bg-red-400" title="Risque Élevé : 0–40" />
+                      <div className="flex-1 bg-amber-400" title="Performance Moyenne : 40–60" />
+                      <div className="flex-1 bg-blue-400" title="Bonne Performance : 60–80" />
+                      <div className="flex-1 bg-emerald-400" title="Excellente Performance : 80–100" />
+                      {/* Curseur de position */}
+                      <div
+                        className="absolute top-0 h-full w-1 bg-gray-900 rounded-full shadow"
+                        style={{ left: `${Math.min(Math.max(score, 0), 100)}%`, transform: 'translateX(-50%)' }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-400 mt-1">
+                      <span>0</span><span>40</span><span>60</span><span>80</span><span>100</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1 mt-2 text-center text-xs font-medium">
+                      <span className="text-red-500">Risque Élevé</span>
+                      <span className="text-amber-500">Moyen</span>
+                      <span className="text-blue-500">Bon</span>
+                      <span className="text-emerald-500">Excellent</span>
+                    </div>
+                  </div>
                   
-                  <p className="text-xs text-gray-400">
-                    Modèle CatBoost v1.2 (Précision estimée: 89%)
-                  </p>
 
                   <button
                     onClick={handleExportPDF}
@@ -492,43 +549,80 @@ export default function Prediction() {
                     {isExporting ? 'Génération...' : 'Exporter en PDF'}
                   </button>
 
-                  <button
-                    onClick={() => setShowSaveCompany(true)}
-                    type="button"
-                    className="mt-3 w-full py-3 px-4 rounded-xl border-2 border-blue-500 text-blue-600 font-bold hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Building className="w-5 h-5" />
-                    Enregistrer pour une entreprise
-                  </button>
+                  {prefilledCompanyId ? (
+                    <div className={`mt-3 w-full py-3 px-4 rounded-xl border flex items-center justify-center gap-2 text-sm font-semibold ${
+                      autoSaveStatus === 'saved' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' :
+                      autoSaveStatus === 'saving' ? 'border-blue-200 bg-blue-50 text-blue-600' :
+                      autoSaveStatus === 'error' ? 'border-red-300 bg-red-50 text-red-600' :
+                      'border-gray-200 bg-gray-50 text-gray-400'
+                    }`}>
+                      {autoSaveStatus === 'saving' && <><Activity className="w-4 h-4 animate-spin" />Sauvegarde en cours…</>}
+                      {autoSaveStatus === 'saved' && <><CheckCircle className="w-4 h-4" />Score sauvegardé pour <span className="font-bold">{prefilledCompanyName}</span></>}
+                      {autoSaveStatus === 'error' && <>Erreur de sauvegarde automatique</>}
+                      {autoSaveStatus === 'idle' && <><Building className="w-4 h-4" />En attente du calcul…</>}
+                    </div>
+                  ) : (
+                    <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <Building className="w-3.5 h-3.5" />
+                        Associer à une entreprise
+                      </p>
+                      <select
+                        value={selectedCompanyId ?? ''}
+                        onChange={(e) => {
+                          setSelectedCompanyId(e.target.value || null);
+                          setSaveStatus('idle');
+                          if (e.target.value !== NEW_COMPANY_SENTINEL) setNewCompanyName('');
+                        }}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-2"
+                      >
+                        <option value="">Sélectionner une entreprise…</option>
+                        {companies.map((c) => (
+                          <option key={c.entreprise_id} value={c.entreprise_id}>{c.nom}</option>
+                        ))}
+                        {isAdmin && (
+                          <option value={NEW_COMPANY_SENTINEL}>＋ Créer une nouvelle entreprise</option>
+                        )}
+                      </select>
 
-                  {showSaveCompany && (
-                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Nom de l'entreprise</label>
-                      <input
-                        type="text"
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
-                        placeholder="Ex: TechCorp SA"
-                        className="w-full px-3 py-2 border border-blue-300 rounded-md mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleSaveToCompany}
-                          disabled={isSavingCompany || !companyName.trim()}
-                          className="flex-1 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700 disabled:opacity-50"
-                        >
-                          {isSavingCompany ? 'Enregistrement...' : 'Enregistrer'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowSaveCompany(false);
-                            setCompanyName('');
-                          }}
-                          className="flex-1 py-2 bg-gray-300 text-gray-700 rounded-md font-semibold hover:bg-gray-400"
-                        >
-                          Annuler
-                        </button>
-                      </div>
+                      {selectedCompanyId === NEW_COMPANY_SENTINEL && (
+                        <input
+                          type="text"
+                          value={newCompanyName}
+                          onChange={(e) => { setNewCompanyName(e.target.value); setSaveStatus('idle'); }}
+                          placeholder="Nom de la nouvelle entreprise…"
+                          autoFocus
+                          className="w-full px-3 py-2 border border-emerald-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-2"
+                        />
+                      )}
+
+                      {saveStatus === 'saved' && (
+                        <p className="text-xs text-emerald-600 flex items-center gap-1 mb-2">
+                          <CheckCircle className="w-3.5 h-3.5" />Score enregistré avec succès
+                        </p>
+                      )}
+                      {saveStatus === 'error' && (
+                        <p className="text-xs text-red-500 mb-2">Erreur lors de l'enregistrement.</p>
+                      )}
+                      <button
+                        onClick={handleSaveToCompany}
+                        disabled={
+                          !selectedCompanyId ||
+                          (selectedCompanyId === NEW_COMPANY_SENTINEL && !newCompanyName.trim()) ||
+                          saveStatus === 'saving' ||
+                          saveStatus === 'saved'
+                        }
+                        type="button"
+                        className="w-full py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-40 flex items-center justify-center gap-2 transition-colors"
+                      >
+                        {saveStatus === 'saving' ? (
+                          <><Activity className="w-4 h-4 animate-spin" />Enregistrement…</>
+                        ) : selectedCompanyId === NEW_COMPANY_SENTINEL ? (
+                          <><Plus className="w-4 h-4" />Créer et enregistrer</>
+                        ) : (
+                          <><Building className="w-4 h-4" />Enregistrer le score</>
+                        )}
+                      </button>
                     </div>
                   )}
 
@@ -555,7 +649,7 @@ export default function Prediction() {
                               </span>
                             </div>
                             <button
-                              onClick={() => (window.location.href = `/recommendations?focus=${encodeURIComponent(formData.primary_industry)}`)}
+                              onClick={() => navigate(`/recommendations?focus=${encodeURIComponent(formData.primary_industry)}`)}
                               className="w-full text-sm text-white bg-emerald-600 hover:bg-emerald-700 font-semibold py-2 px-3 rounded-lg transition-colors mt-2"
                             >
                               Voir toutes les recommandations →

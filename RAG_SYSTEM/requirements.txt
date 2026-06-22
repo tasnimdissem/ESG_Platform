@@ -6,3 +6,4 @@ PyPDF2
 numpy>=1.24,<2.0.0
 pandas
 xlrd
+openpyxl

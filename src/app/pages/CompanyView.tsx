@@ -75,12 +75,12 @@ export default function CompanyView() {
     }
   };
 
-  if (!company) return <div className="p-6">{loadError ?? 'Entreprise introuvable.'}</div>;
+  if (!company) return <div className="p-4 md:p-6">{loadError ?? 'Entreprise introuvable.'}</div>;
 
   const chartData = (company.historique || []).map((h) => ({ date: h.date, score: h.scores?.global ?? null })).reverse();
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <div className="mb-6">
         <h2 className="text-3xl font-bold text-slate-900">{company.nom}</h2>
         <p className="text-slate-500 mt-1">Historique de {company.historique?.length || 0} prédiction(s)</p>

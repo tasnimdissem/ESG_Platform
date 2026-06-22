@@ -1,6 +1,7 @@
 // La page Analytics récupère maintenant les données ESG en direct depuis le backend afin que les graphiques reflètent l'historique de prédictions CatBoost au lieu de valeurs de démonstration statiques.
 import { useEffect, useState } from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useAuth } from '../contexts/AuthContext';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
 import { Download, TrendingUp } from 'lucide-react';
 
 type MonthlyPoint = {
@@ -11,6 +12,8 @@ type MonthlyPoint = {
 type VariablePoint = {
   feature: string;
   importance: number;
+  label?: string;
+  description?: string;
 };
 
 type CorrelationCell = {
@@ -53,7 +56,13 @@ function formatTooltipNumber(value: unknown, digits = 2) {
   return Number.isFinite(num) ? num.toFixed(digits) : '—';
 }
 
+function formatImportanceLabel(value: unknown) {
+  const num = Number(value);
+  return Number.isFinite(num) ? `${num.toFixed(1)} %` : '—';
+}
+
 export default function Analytics() {
+  const { user } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState('12m');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsSummary>(emptySummary);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,10 +99,66 @@ export default function Analytics() {
     score: item.score === null ? null : toSafeNumber(item.score, 0),
   }));
 
-  const topVariables = analyticsData.top_variables.map((item) => ({
-    feature: item.feature,
-    importance: toSafeNumber(item.importance, 0) * 100,
-  }));
+  const VARIABLE_LABELS: Record<string, string> = {
+    log_market_cap: "Valeur boursière",
+    log_employees: "Nombre d'employés",
+    log_revenue_wins: "Chiffre d'affaires",
+    log_scope_1: "CO₂ direct (Scope 1)",
+    log_scope_2: "CO₂ électricité (Scope 2)",
+    log_scope_3: "CO₂ chaîne (Scope 3)",
+    log_energy_consumption: "Consommation énergie",
+    log_waste_production: "Déchets produits",
+    log_water_consumption: "Eau consommée",
+    log_hours_of_training_wins: "Heures de formation",
+    log_ceo_compensation: "Rémunération PDG",
+    independent_board_members_percentage: "% Admin. indépendants",
+    log_legal_costs_paid_for_controversies: "Litiges & amendes",
+    intensity_scope_1: "Ratio CO₂ direct / CA",
+    intensity_scope_2: "Ratio CO₂ élec. / CA",
+    intensity_scope_3: "Ratio CO₂ chaîne / CA",
+    intensity_energy: "Ratio énergie / CA",
+    intensity_waste: "Ratio déchets / CA",
+    intensity_water: "Ratio eau / CA",
+    intensity_training: "Formation / effectif",
+    intensity_productivity: "CA par employé",
+    revenue_negative_flag: "Revenus en baisse",
+    primary_industry: "Secteur d'activité",
+  };
+
+  const VARIABLE_DESCRIPTIONS: Record<string, string> = {
+    log_market_cap: 'Taille de l’entreprise en Bourse',
+    log_employees: 'Effectif total de l’entreprise',
+    log_revenue_wins: 'Niveau de chiffre d’affaires',
+    log_scope_1: 'Émissions directes de l’entreprise',
+    log_scope_2: 'Émissions liées à l’électricité achetée',
+    log_scope_3: 'Émissions de la chaîne de valeur',
+    log_energy_consumption: 'Quantité totale d’énergie utilisée',
+    log_waste_production: 'Volume de déchets produits',
+    log_water_consumption: 'Volume d’eau consommé',
+    log_hours_of_training_wins: 'Temps investi dans la formation',
+    log_ceo_compensation: 'Rémunération du dirigeant principal',
+    independent_board_members_percentage: 'Part des membres indépendants au conseil',
+    log_legal_costs_paid_for_controversies: 'Coûts liés aux litiges et controverses',
+    intensity_scope_1: 'Intensité des émissions directes par rapport au chiffre d’affaires',
+    intensity_scope_2: 'Intensité des émissions électriques par rapport au chiffre d’affaires',
+    intensity_scope_3: 'Intensité des émissions de chaîne par rapport au chiffre d’affaires',
+    intensity_energy: 'Consommation d’énergie rapportée au chiffre d’affaires',
+    intensity_waste: 'Déchets rapportés au chiffre d’affaires',
+    intensity_water: 'Eau rapportée au chiffre d’affaires',
+    intensity_training: 'Formation rapportée à l’effectif',
+    intensity_productivity: 'Chiffre d’affaires par employé',
+    revenue_negative_flag: 'Indique si les revenus sont en baisse',
+    primary_industry: 'Secteur principal de l’entreprise',
+  };
+
+  const topVariables = analyticsData.top_variables
+    .map((item) => ({
+      feature: item.feature,
+      label: VARIABLE_LABELS[item.feature] ?? item.feature,
+      description: VARIABLE_DESCRIPTIONS[item.feature] ?? 'Variable utilisée par le modèle pour affiner la prédiction.',
+      importance: toSafeNumber(item.importance, 0) * 100,
+    }))
+    .sort((left, right) => right.importance - left.importance);
 
   // correlation heatmap removed per design preference
 
@@ -127,11 +192,34 @@ export default function Analytics() {
     URL.revokeObjectURL(url);
   };
 
-  const isEmptyState = !isLoading && analyticsData.nb_predictions < 2;
+  const isEmptyState = !isLoading && analyticsData.nb_predictions === 0;
+  const emptyStateMessage = user?.role === 'decideur'
+    ? "Aucune prédiction ESG n'a encore été effectuée pour votre entreprise."
+    : user?.role === 'admin'
+    ? 'Aucune prédiction enregistrée sur la plateforme.'
+    : 'Aucune prédiction enregistrée. Utilisez le calculateur ESG pour commencer.';
+
+  function VariableImportanceTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: (typeof topVariables)[number] }> }) {
+    if (!active || !payload?.length) {
+      return null;
+    }
+
+    const item = payload[0].payload;
+
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-lg max-w-xs">
+        <p className="text-sm font-semibold text-gray-900">{item.label}</p>
+        <p className="mt-1 text-xs leading-5 text-gray-600">{item.description}</p>
+        <p className="mt-2 text-sm font-medium text-emerald-700">
+          Poids dans le modèle: {formatImportanceLabel(item.importance)}
+        </p>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
-      <div className="p-8 space-y-8 bg-gray-50 min-h-screen animate-pulse">
+      <div className="p-4 md:p-8 space-y-8 bg-gray-50 min-h-screen animate-pulse">
         <div className="flex items-center justify-between">
           <div className="space-y-3">
             <div className="h-8 w-80 rounded bg-gray-200" />
@@ -157,9 +245,9 @@ export default function Analytics() {
   }
 
   return (
-    <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
+    <div className="p-4 md:p-8 space-y-8 bg-gray-50 min-h-screen">
       {/* Header with Filters */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Analyses ESG détaillées</h1>
           <p className="text-gray-600">Analyse en temps réel basée sur l’historique CatBoost de la plateforme.</p>
@@ -193,7 +281,7 @@ export default function Analytics() {
 
       {isEmptyState ? (
         <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-500">
-          Aucune prédiction enregistrée, utilisez le calculateur pour commencer.
+          {emptyStateMessage}
         </div>
       ) : (
         <>
@@ -244,14 +332,19 @@ export default function Analytics() {
             </div>
 
             <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-              <h3 className="font-bold text-lg mb-4">Importance des Variables</h3>
+              <h3 className="font-bold text-lg mb-2">Variables les plus influentes</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Plus la barre est longue, plus la variable compte dans la prédiction.
+              </p>
               <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={topVariables} layout="vertical">
+                <BarChart data={topVariables} layout="vertical" margin={{ top: 8, right: 36, bottom: 8, left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis type="number" stroke="#6b7280" />
-                  <YAxis type="category" dataKey="feature" stroke="#6b7280" width={140} />
-                  <Tooltip formatter={(value) => [`${formatTooltipNumber(value, 2)}%`, 'Importance']} />
-                  <Bar dataKey="importance" fill="#10b981" radius={[0, 8, 8, 0]} />
+                  <XAxis type="number" stroke="#6b7280" tickFormatter={(value) => `${formatTooltipNumber(value, 0)}%`} />
+                  <YAxis type="category" dataKey="label" stroke="#6b7280" width={190} tick={{ fontSize: 12 }} />
+                  <Tooltip content={<VariableImportanceTooltip />} cursor={{ fill: '#ecfdf5' }} />
+                  <Bar dataKey="importance" fill="#10b981" radius={[0, 8, 8, 0]}>
+                    <LabelList dataKey="importance" position="right" formatter={formatImportanceLabel} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>

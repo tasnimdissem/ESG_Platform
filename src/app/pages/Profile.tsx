@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Camera, Lock, Mail, Save, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
+import { getRoleLabel } from '../utils/roles';
 
 export default function Profile() {
   const { user, updateUser } = useAuth();
@@ -98,7 +99,7 @@ export default function Profile() {
   };
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
+    <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <div className="max-w-5xl mx-auto space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Mon profil</h1>
@@ -137,7 +138,7 @@ export default function Profile() {
               <div className="w-full space-y-3 rounded-xl bg-gray-50 p-4 text-left text-sm text-gray-600">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-gray-500">Rôle</span>
-                  <span>{user?.role ?? 'user'}</span>
+                  <span>{getRoleLabel(user?.role)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-gray-500">Compte</span>

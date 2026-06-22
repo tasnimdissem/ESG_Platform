@@ -1,7 +1,6 @@
 # Analytics summary endpoint: aggregates CatBoost prediction history so the frontend can render live ESG trends instead of static demo data.
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 import pandas as pd
@@ -10,6 +9,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from backend.extensions import db
 from backend.models.prediction import PredictionHistory
+from backend.models.user import User
 from backend.services.ml_service import ml_service_instance
 
 
@@ -47,13 +47,47 @@ def _empty_summary() -> dict[str, Any]:
 @jwt_required()
 def analytics_summary() -> object:
     user_id = get_jwt_identity()
-    history = (
-        PredictionHistory.query.filter_by(user_id=user_id)
-        .order_by(PredictionHistory.created_at.asc())
-        .all()
-    )
+    try:
+        current_user = db.session.get(User, int(user_id))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Identité du jeton invalide'}), 401
 
-    if len(history) < 2:
+    if current_user is None:
+        return jsonify({'error': 'Utilisateur introuvable'}), 401
+
+    if current_user.role not in ('admin', 'decideur', 'metier'):
+        return jsonify({'error': 'Accès refusé. Réservé aux décideurs, utilisateurs métier et administrateurs.'}), 403
+
+    if current_user.role == 'admin':
+        history = (
+            PredictionHistory.query
+            .order_by(PredictionHistory.created_at.asc())
+            .all()
+        )
+    else:
+        # decideur/metier : prédictions de leur entreprise + prédictions des admins (plateforme-wide)
+        admin_ids = [u.id for u in User.query.filter_by(role='admin').all()]
+        if current_user.company_id:
+            company_user_ids = [
+                u.id for u in User.query.filter_by(company_id=current_user.company_id).all()
+            ]
+            relevant_ids = list(set(company_user_ids + admin_ids))
+            history = (
+                PredictionHistory.query
+                .filter(PredictionHistory.user_id.in_(relevant_ids))
+                .order_by(PredictionHistory.created_at.asc())
+                .all()
+            )
+        else:
+            relevant_ids = list(set([int(user_id)] + admin_ids))
+            history = (
+                PredictionHistory.query
+                .filter(PredictionHistory.user_id.in_(relevant_ids))
+                .order_by(PredictionHistory.created_at.asc())
+                .all()
+            )
+
+    if len(history) == 0:
         return jsonify(_empty_summary()), 200
 
     rows: list[dict[str, Any]] = []
