@@ -256,7 +256,31 @@ function normalizeCategory(value: unknown): 'Environmental' | 'Social' | 'Govern
   return 'Environmental';
 }
 
-function normalizeRecommendationItems(items: IntegrationRecommendation[] | undefined): RecommendationItem[] {
+const PILLAR_ACTIONS: Record<string, string[]> = {
+  Environmental: [
+    'Réaliser un bilan carbone complet (Scope 1, 2 et 3) selon le protocole GHG Protocol.',
+    'Fixer des objectifs de réduction des émissions alignés sur un scénario 1,5 °C (SBTi).',
+    'Déployer un plan d\'efficacité énergétique sur les sites opérationnels clés.',
+    'Mettre en place un système de suivi mensuel des consommations eau, énergie et déchets.',
+  ],
+  Social: [
+    'Déployer un plan de formation annuel avec un objectif mesuré en heures/collaborateur.',
+    'Définir une politique de diversité et d\'inclusion avec des indicateurs publiés (GRI 405).',
+    'Réaliser une enquête d\'engagement salarié annuelle et communiquer les résultats.',
+    'Mettre en place une procédure de remontée d\'alertes éthiques (GRI 406).',
+  ],
+  Governance: [
+    'Évaluer et renforcer l\'indépendance du conseil d\'administration (GRI 2-9 à 2-29).',
+    'Adopter un code d\'éthique anti-corruption formalisé conforme à GRI 205.',
+    'Publier un rapport de gouvernance transparent sur les rémunérations des dirigeants.',
+    'Mettre en place un comité d\'audit indépendant avec un mandat clair sur les risques ESG.',
+  ],
+};
+
+function normalizeRecommendationItems(
+  items: IntegrationRecommendation[] | undefined,
+  currentScore: number = 70,
+): RecommendationItem[] {
   if (!Array.isArray(items)) return [];
 
   return items.map((item, index) => {
@@ -267,18 +291,23 @@ function normalizeRecommendationItems(items: IntegrationRecommendation[] | undef
     const rawEffort = String(item.effort ?? 'medium').toLowerCase();
     const effort: 'low' | 'medium' | 'high' = rawEffort === 'high' ? 'high' : rawEffort === 'low' ? 'low' : 'medium';
 
+    const targetScore = Math.min(100, Math.round(currentScore + impact));
+
+    const justificationText = String(item.justification ?? item.title ?? 'Examiner cette recommandation.');
+    const actions = PILLAR_ACTIONS[category] ?? PILLAR_ACTIONS.Environmental;
+
     return {
       id: String(item.id ?? `rec-${index + 1}`),
-      title: String(item.title ?? `Recommendation ${index + 1}`),
+      title: String(item.title ?? `Recommandation ${index + 1}`),
       category,
       priority,
       impact,
       effort,
-      timeline: String(item.timeline ?? '3 months'),
-      currentScore: 70,
-      targetScore: 82,
-      description: String(item.justification ?? item.title ?? 'No description provided.'),
-      actions: [String(item.justification ?? item.title ?? 'Review this recommendation.')],
+      timeline: String(item.timeline ?? '3 mois'),
+      currentScore: Math.round(currentScore),
+      targetScore,
+      description: justificationText,
+      actions,
       status: 'not-started',
     };
   });
@@ -301,19 +330,29 @@ export async function fetchChatResponse(message: string): Promise<ChatResponse> 
 }
 
 export async function fetchRecommendations(payload: RecommendationsQuery = {}): Promise<RecommendationsResponse> {
+  const score = payload.score ?? 50;
+  const riskLevel = payload.risk_level ?? 'Medium';
+  const focusArea = payload.focus_area ?? 'overall';
+
+  const areaText = focusArea !== 'overall'
+    ? `en particulier le pilier ${focusArea}`
+    : 'sur les trois piliers Environnemental, Social et Gouvernance';
+
+  const message = `Recommandations ESG prioritaires pour améliorer les performances ${areaText}. Score ESG actuel : ${Math.round(score)}/100, niveau de risque : ${riskLevel}. Proposer des actions concrètes, mesurables et adaptées au niveau de maturité ESG actuel.`;
+
   const data = await fetchIntegration({
     client_request_id: `recommend-${Date.now()}`,
-    message: 'Fournir des recommandations ESG prioritaires à partir du contexte disponible.',
-    top_k: 5,
+    message,
+    top_k: 8,
     include_recommendations: true,
     signals: {
-      esg_score: payload.score,
-      risk_level: payload.risk_level,
-      focus_area: payload.focus_area,
+      esg_score: score,
+      risk_level: riskLevel,
+      focus_area: focusArea,
     },
   });
 
-  const recommendations = normalizeRecommendationItems(data.response?.recommendations);
+  const recommendations = normalizeRecommendationItems(data.response?.recommendations, score);
   const sources = normalizeSourceLabels(data.response?.sources);
 
   return {

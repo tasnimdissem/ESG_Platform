@@ -77,7 +77,7 @@ export default function ChatbotRag() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, interimText]);
+  }, [messages]);
 
   // Load conversation list only after auth state is resolved and user is logged in
   useEffect(() => {
@@ -203,7 +203,8 @@ export default function ChatbotRag() {
       }
 
       const response = await fetchChatResponseWithSession(messageText, sessionId);
-      addBotMessage(response.answer, response.sources, { isFallback: response.isFallback });
+      const uniqueSources = [...new Set(response.sources ?? [])];
+      addBotMessage(response.answer, uniqueSources, { isFallback: response.isFallback });
 
       // Persist bot response
       if (convId && response.answer) {
@@ -246,9 +247,11 @@ export default function ChatbotRag() {
         });
       }
 
-      const sourceLabels = (result.sources as Array<{ source_name?: string; chunk_id?: string; source_type?: string }>)
-        .map((s, i) => s.source_name ?? s.chunk_id ?? s.source_type ?? `Source ${i + 1}`)
-        .filter(Boolean);
+      const sourceLabels = [...new Set(
+        (result.sources as Array<{ source_name?: string; chunk_id?: string; source_type?: string }>)
+          .map((s, i) => s.source_name ?? s.chunk_id ?? s.source_type ?? `Source ${i + 1}`)
+          .filter(Boolean)
+      )];
 
       addBotMessage(result.answer, sourceLabels, {
         command: result.command !== 'ask' ? result.command : undefined,

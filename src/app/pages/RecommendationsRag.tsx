@@ -21,13 +21,26 @@ export default function RecommendationsRag() {
   const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
-  const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [recommendations, setRecommendations] = useState<RecommendationItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('esg_recs_cache');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    try { return !localStorage.getItem('esg_recs_cache'); }
+    catch { return true; }
+  });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [ragUsed, setRagUsed] = useState(false);
   const [sourceCount, setSourceCount] = useState(0);
   const [selectedDetails, setSelectedDetails] = useState<RecommendationItem | null>(null);
-  const [recommendationStatus, setRecommendationStatus] = useState<Record<string, 'not-started' | 'in-progress' | 'completed'>>({});
+  const [recommendationStatus, setRecommendationStatus] = useState<Record<string, 'not-started' | 'in-progress' | 'completed'>>(() => {
+    try {
+      const saved = localStorage.getItem('esg_rec_status');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
 
   // Real score from the company's latest prediction
   const [companyScore, setCompanyScore] = useState<number | null>(null);
@@ -57,12 +70,29 @@ export default function RecommendationsRag() {
     })();
   }, []);
 
-  const loadRecommendations = async () => {
-    setIsLoading(true);
-    setErrorMessage(null);
+  // Persist status across tab changes
+  useEffect(() => {
+    try { localStorage.setItem('esg_rec_status', JSON.stringify(recommendationStatus)); }
+    catch {}
+  }, [recommendationStatus]);
 
+  const loadRecommendations = async (force = false) => {
     const effectiveScore = companyScore ?? 50;
     const riskLevel = scoreToRiskLevel(effectiveScore);
+    const cacheKey = `${Math.round(effectiveScore)}_${selectedCategory}`;
+
+    // Skip reload if score+category unchanged and we already have cached data
+    if (!force) {
+      const savedKey = localStorage.getItem('esg_recs_key');
+      const cached = localStorage.getItem('esg_recs_cache');
+      if (savedKey === cacheKey && cached && JSON.parse(cached).length > 0) {
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    setIsLoading(true);
+    setErrorMessage(null);
 
     try {
       const response = await fetchRecommendations({
@@ -70,11 +100,15 @@ export default function RecommendationsRag() {
         risk_level: riskLevel,
         focus_area: selectedCategory === 'all' ? 'overall' : selectedCategory,
       });
-      setRecommendations(response.recommendations ?? []);
+      const recs = response.recommendations ?? [];
+      setRecommendations(recs);
       setRagUsed(Boolean(response.rag_used));
       setSourceCount(Number(response.source_count ?? 0));
+      try {
+        localStorage.setItem('esg_recs_cache', JSON.stringify(recs));
+        localStorage.setItem('esg_recs_key', cacheKey);
+      } catch {}
     } catch {
-      setRecommendations([]);
       setErrorMessage('Impossible de charger les recommandations depuis le backend local.');
     } finally {
       setIsLoading(false);
@@ -289,7 +323,7 @@ export default function RecommendationsRag() {
           </div>
 
           <button
-            onClick={() => void loadRecommendations()}
+            onClick={() => void loadRecommendations(true)}
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2 font-semibold text-gray-700 hover:bg-gray-50"
           >
             <RefreshCcw className="h-4 w-4" />
